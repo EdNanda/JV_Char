@@ -662,7 +662,7 @@ class MainWindow(QtWidgets.QMainWindow):
         mpp_data = pd.DataFrame({"Time (s)":self.mpp_time,"Voltage (V)":self.mpp_voltage,
                                 "Current (mA)":self.mpp_current,"Power (W)":self.mpp_power})
             
-        filename = self.folder+self.sample+"_PL_measurement.csv"
+        filename = self.folder+self.sample+"_MPP_measurement.csv"
         metadata.to_csv(filename, header = False)
         mpp_data.to_csv(filename, mode="a", index=False)
         
