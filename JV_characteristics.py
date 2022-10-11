@@ -27,7 +27,7 @@ import pyvisa as visa
 import pandas as pd
 import numpy as np
 import os
-import time
+from time import time
 import math
 import random 
 from time import time, sleep, strftime, localtime
@@ -309,8 +309,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self.mpp_stepSize.setMaximumWidth(sMW)
         self.mpp_voltage.setMaximumWidth(sMW)
         
-        self.mpp_ttime.setText("180")
-        self.mpp_inttime.setText("20")
+        self.mpp_ttime.setText("60")
+        self.mpp_inttime.setText("100")
         self.mpp_stepSize.setText("0.01")
         self.mpp_voltage.setText("0.9")
         
@@ -351,10 +351,14 @@ class MainWindow(QtWidgets.QMainWindow):
         self.glv_labels = ["Temperature ('C)","Water content (ppm)","Oxygen content (ppm)"]
         self.glv_vars = []
         
-        # self.setup_labs = ["Sample","User","Folder","Integration Time (s)", "Delay time (s)", "Measurement length (s)", 
-        #               "Averaged Curves"]
-        # self.setup_vals = [self.LEsample, self.LEuser, self.LEfolder, self.LEinttime, self.LEdeltime, self.LEmeatime,
-        #               self.LEcurave]
+        self.setup_labs_jv = ["Sample","User","Folder","Voltage_start (V)", "Voltage_end (V)", "Voltage_step (V)", 
+                      "Averaged Values","Integration time(s)","Setting time (s)","Current limit (mA)"]
+        self.setup_vals_jv = [self.LEsample, self.LEuser, self.LEfolder, self.volt_start,
+                           self.volt_end,self.volt_step,self.ave_pts,self.int_time,self.set_time,self.curr_lim]
+        self.setup_labs_mpp = ["Sample","User","Folder","Total time (s)", "Integration time (ms)", "Voltage_step (V)", 
+                      "Starting Voltage (V)"]
+        self.setup_vals_mpp = [self.LEsample, self.LEuser, self.LEfolder, self.mpp_ttime,
+                           self.mpp_inttime,self.mpp_stepSize,self.mpp_voltage]
         
         ## Make a new layout and position relevant values
         LmDataExp = QFormLayout()
@@ -529,11 +533,19 @@ class MainWindow(QtWidgets.QMainWindow):
         self.sample = self.LEsample.text()
         self.meta_dict = {} ## All variables will be collected here
         ## Gather all relevant information
-        addit_data = [self.dark_data, self.bright_data]
-        addit_labl = ["Dark measurement", "Bright measurement"]
-        
-        all_metaD_labs = self.setup_labs+self.exp_labels+self.glv_labels
-        all_metaD_vals = self.setup_vals+self.exp_vars+self.glv_vars
+        # if self.forw_rev.isChecked():
+        #     addit_data = [self.res_fwd_volt,self.res_fwd_curr,self.res_bkw_volt,self.res_bkw_curr]
+        #     addit_labl = ["Voltage_fwd (V)", "Current_fwd (mA)","Voltage_bkw (V)", "Current_bkw (mA)"]
+        # else:
+        #     addit_data = [self.res_fwd_volt,self.res_fwd_curr]
+        #     addit_labl = ["Voltage_fwd (V)", "Current_fwd (mA)"]
+        # all_metaD_labs
+        all_metaD_labs = self.setup_labs_jv+self.exp_labels+self.glv_labels
+        all_metaD_vals = self.setup_vals_jv+self.exp_vars+self.glv_vars
+        # all_metaD_labs_jv = self.setup_labs_jv+self.exp_labels+self.glv_labels
+        # all_metaD_vals_jv = self.setup_vals_jv+self.exp_vars+self.glv_vars
+        # all_metaD_labs_mpp = self.setup_labs_jv+self.exp_labels+self.glv_labels
+        # all_metaD_vals_mpp = self.setup_vals_jv+self.exp_vars+self.glv_vars
 
         ## Add data to dictionary
         try:
@@ -549,8 +561,8 @@ class MainWindow(QtWidgets.QMainWindow):
         for cc,di in enumerate(all_metaD_labs):
             self.meta_dict[di] = all_metaD_vals[cc].text()
             
-        for cp,ad in enumerate(addit_labl):
-            self.meta_dict[ad] = addit_data[cp]
+        # for cp,ad in enumerate(addit_labl):
+        #     self.meta_dict[ad] = addit_data[cp]
         
         self.meta_dict["Comments"] = self.com_labels.toPlainText() ## This field has a diffferent format than the others
 
@@ -647,7 +659,7 @@ class MainWindow(QtWidgets.QMainWindow):
         jv_data = pd.DataFrame({"Current_fwd (mA)":self.res_fwd_curr,"Voltage_fwd (V)":self.res_fwd_volt,
                                 "Current_bkw (mA)":self.res_bkw_curr,"Voltage_bkw (V)":self.res_bkw_volt})
             
-        filename = self.folder+self.sample+"_PL_measurement.csv"
+        filename = self.folder+self.sample+"_JV_characteristics.csv"
         metadata.to_csv(filename, header = False)
         jv_data.to_csv(filename, mode="a", index=False)
         
@@ -659,7 +671,7 @@ class MainWindow(QtWidgets.QMainWindow):
     def save_mpp(self):
         self.gather_all_metadata()
         metadata = pd.DataFrame.from_dict(self.meta_dict, orient='index')
-        mpp_data = pd.DataFrame({"Time (s)":self.mpp_time,"Voltage (V)":self.mpp_voltage,
+        mpp_data = pd.DataFrame({"Time (s)":self.mpp_time,"Voltage (V)":self.res_mpp_voltage,
                                 "Current (mA)":self.mpp_current,"Power (W)":self.mpp_power})
             
         filename = self.folder+self.sample+"_MPP_measurement.csv"
@@ -670,7 +682,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.statusBar().showMessage("Data saved successfully", 5000)
         
         self.mpp_current = []
-        self.rmpp_voltage = []
+        self.res_mpp_voltage = []
         self.mpp_power = []
         
         
@@ -802,6 +814,8 @@ class MainWindow(QtWidgets.QMainWindow):
         average_points = int(self.ave_pts.text())
         time = float(self.set_time.text())
         
+        self.statusBar().showMessage("Measuring JV curve")
+        
         
         self.keithley.enable_source()
         
@@ -818,7 +832,7 @@ class MainWindow(QtWidgets.QMainWindow):
             fwd_voltages = []
             for t in range(average_points):
                 self.keithley.source_voltage = i
-                QtTest.QTest.qWait(time*1000)
+                QtTest.QTest.qWait(int(time*1000))
                 fwd_voltages.append(i)
                 fwd_currents.append(self.keithley.current)
             # print(np.mean(meas_currents),np.std(meas_currents))
@@ -833,17 +847,17 @@ class MainWindow(QtWidgets.QMainWindow):
                 rev_voltages = []
                 for t in range(average_points):
                     self.keithley.source_voltage = i
-                    QtTest.QTest.qWait(time*1000)
+                    QtTest.QTest.qWait(int(time*1000))
                     rev_voltages.append(i)
                     rev_currents.append(self.keithley.current)
                 # print(np.mean(rev_currents),np.std(rev_currents))
                 self.res_bkw_curr.append(np.mean(rev_currents))
                 self.res_bkw_volt.append(np.mean(rev_voltages))
                 self.plot_jv()
-        print(self.res_fwd_curr)
-        print(self.res_fwd_volt)
-        print(self.res_bkw_curr)
-        print(self.res_bkw_volt)
+        # print(self.res_fwd_curr)
+        # print(self.res_fwd_volt)
+        # print(self.res_bkw_curr)
+        # print(self.res_bkw_volt)
         
         
             # i_fwd.append(self.keithley.current)
@@ -859,34 +873,58 @@ class MainWindow(QtWidgets.QMainWindow):
         mpp_int_time = float(self.mpp_inttime.text())
         mpp_step = float(self.mpp_stepSize.text())
         mpp_voltage = float(self.mpp_voltage.text())
+        
+        self.statusBar().showMessage("Tracking Maximum Power Point")
 
         self.keithley.enable_source()
         
         self.mpp_current = []
-        self.rmpp_voltage = []
+        self.res_mpp_voltage = []
         self.mpp_power = []
         self.mpp_time = []
         
-        mpp_test = []
+        # mpp_test_current = []
+        # mpp_test_power = []
         max_voltage = mpp_voltage
-        time_c = 0
-        for i in np.arange(0,mpp_total_time,mpp_int_time):
+        time_c = time()
+        for i in np.arange(0,mpp_total_time/3,mpp_int_time/1000):##TODO this time does not work, it's longer
             voltage_test = [max_voltage-mpp_step , max_voltage , max_voltage+mpp_step]
+            mpp_test_current = []
+            mpp_test_voltage = []
+            mpp_test_power = []
             
             for v in voltage_test:
                 self.keithley.source_voltage = v
-                QtTest.QTest.qWait(mpp_int_time*1000)
-                mpp_test.append(self.keithley.current)
+                ## Wait for stabilized measurement
+                QtTest.QTest.qWait(int(mpp_int_time))
+                ## Measure current & voltage
+                m_current = self.keithley.current
+                m_voltage = self.keithley.voltage
                 
-            self.mpp_current.append(max(mpp_test))
-            index_max = mpp_test.index(max(mpp_test))
-            max_voltage = voltage_test[index_max]
-            self.mpp_voltage.append(max_voltage)
+                mpp_test_current.append(m_current)
+                mpp_test_voltage.append(m_voltage)
+                mpp_test_power.append(abs(m_voltage*m_current))
+                
+            index_max = mpp_test_power.index(max(mpp_test_power))
             
-            self.mpp_power.append(max_voltage*max(mpp_test))
-            self.mpp_time.append(time_c)
-            time_c = time_c + mpp_int_time
+            self.mpp_current.append(mpp_test_current[index_max])
+            print(mpp_test_power, index_max)
+            max_voltage = mpp_test_voltage[index_max]
+            print(max_voltage)
+            self.res_mpp_voltage.append(max_voltage)
+            
+            self.mpp_power.append(mpp_test_power[index_max])
+            
+            if i == 0:
+                to = time() - time_c
+            elapsed_t = (time() - time_c - to)
+            self.mpp_time.append(elapsed_t / 60)            
+            # time_c = time_c + mpp_int_time*3##TODO make it to measure real time, not calculated
             self.plot_mpp()
+            print(i, elapsed_t)
+            if elapsed_t > mpp_total_time:
+                print(elapsed_t, mpp_total_time)
+                break
         
         self.keithley.disable_source()
         
@@ -972,7 +1010,7 @@ class MainWindow(QtWidgets.QMainWindow):
         
     def reset_plot_mpp(self):
         self.canvas.axes.cla()
-        self.canvas.axes.set_xlabel('Time (s)')
+        self.canvas.axes.set_xlabel('Time (min)')
         self.canvas.axes.set_ylabel('Power (W)')
         self.canvas.axes.grid(True,linestyle='--')
         self.canvas.axes.set_xlim([0,2])
@@ -1063,8 +1101,12 @@ class MainWindow(QtWidgets.QMainWindow):
         ey = (max_y-min_y)*0.05
         
         room = 0.05
-        self.canvas.axes.set_ylim([min_y-ey,max_y+ey])
-        self.canvas.axes.set_xlim([min_x-ex,max_x+ex])
+        if min_x != max_x:
+            self.canvas.axes.set_ylim([min_y-ey,max_y+ey])
+            self.canvas.axes.set_xlim([min_x-ex,max_x+ex])
+        else:
+            self.canvas.axes.set_ylim([min_y-room,max_y+room])
+            self.canvas.axes.set_xlim([min_x-room,max_x+room])
         
         ## Draw plot
         self.canvas.draw_idle()
@@ -1088,8 +1130,12 @@ class MainWindow(QtWidgets.QMainWindow):
         ey = (max_y-min_y)*0.05
         
         room = 0.05
-        self.canvas.axes.set_ylim([min_y-ey,max_y+ey])
-        self.canvas.axes.set_xlim([min_x-ex,max_x+ex])
+        if min_x != max_x:
+            self.canvas.axes.set_ylim([min_y-ey,max_y+ey])
+            self.canvas.axes.set_xlim([min_x-ex,max_x+ex])
+        else:
+            self.canvas.axes.set_ylim([min_y-room,max_y+room])
+            self.canvas.axes.set_xlim([min_x-room,max_x+room])
         
         ## Draw plot
         self.canvas.draw_idle()
