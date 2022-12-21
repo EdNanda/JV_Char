@@ -1,5 +1,5 @@
 __author__ = "Edgar Nandayapa"
-__version__ = "1.07-2021"
+__version__ = "1.08-2022"
 
 import sys
 import matplotlib
@@ -87,7 +87,7 @@ class Worker(QObject):
         while True:
             sleep(0.1)
             self.keithley.source_voltage = 0
-            current = self.keithley.current
+            current = self.keithley.current*1000
             self.progress.emit(current)
         self.finished.emit()
         #     self.keithley.enable_source()
@@ -173,13 +173,13 @@ class MainWindow(QtWidgets.QMainWindow):
         
         Ljvvars = QGridLayout()
         Ljvvars.addWidget(QLabel(" "),0,0)
-        Ljvvars.addWidget(QLabel("Voltage\n    V"),0,1,Qt.AlignCenter)
-        Ljvvars.addWidget(QLabel("Current\n mA/cm²"),0,2,Qt.AlignCenter)
-        Ljvvars.addWidget(QLabel("Fill Factor\n    %"),0,3,Qt.AlignCenter)
+        Ljvvars.addWidget(QLabel("Voc\n V"),0,1,Qt.AlignCenter)
+        Ljvvars.addWidget(QLabel(" Jsc\n mA/cm²"),0,2,Qt.AlignCenter)
+        Ljvvars.addWidget(QLabel("FF\n %"),0,3,Qt.AlignCenter)
         Ljvvars.addWidget(QLabel("PCE\n %"),0,4,Qt.AlignCenter)
-        Ljvvars.addWidget(QLabel("Voltage_mpp\n       V"),0,5,Qt.AlignCenter)
-        Ljvvars.addWidget(QLabel("Current_mpp\n  mA/cm²"),0,6,Qt.AlignCenter)
-        Ljvvars.addWidget(QLabel("Power_mpp\n    mW/cm²"),0,7,Qt.AlignCenter)
+        Ljvvars.addWidget(QLabel("V_mpp\n       V"),0,5,Qt.AlignCenter)
+        Ljvvars.addWidget(QLabel("J_mpp\n  mA/cm²"),0,6,Qt.AlignCenter)
+        Ljvvars.addWidget(QLabel("P_mpp\n    mW/cm²"),0,7,Qt.AlignCenter)
         Ljvvars.addWidget(QLabel("R_series\n  \U00002126cm²"),0,8,Qt.AlignCenter)
         Ljvvars.addWidget(QLabel("R_shunt\n  \U00002126cm²"),0,9,Qt.AlignCenter)
         Ljvvars.addWidget(QLabel("Forward "),1,0,Qt.AlignCenter)
@@ -750,7 +750,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.gather_all_metadata()
         metadata = pd.DataFrame.from_dict(self.meta_dict, orient='index')
         mpp_data = pd.DataFrame({"Time (s)":self.mpp_time,"Voltage (V)":self.res_mpp_voltage,
-                                "Current (mA/cm²)":self.mpp_current,"Power (W)":self.mpp_power})
+                                "Current (mA/cm²)":self.mpp_current,"Power (mW/cm²)":self.mpp_power})
             
         filename = self.folder+self.sample+"_MPP_measurement.csv"
         metadata.to_csv(filename, header = False)
@@ -792,7 +792,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.keithley.enable_source()
     
         self.keithley.source_voltage = 0
-        self.Rcurrent = self.keithley.current
+        self.Rcurrent = self.keithley.current*1000
         self.RsunP = self.Rcurrent/ref
         
         self.refCurrent.setText("Ref. current  (Sun%)\n"+str(round(self.Rcurrent,2))+
@@ -895,7 +895,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 self.keithley.source_voltage = i
                 QtTest.QTest.qWait(int(time*1000))
                 fwd_voltages.append(i)
-                fwd_currents.append(self.keithley.current/area)
+                fwd_currents.append(self.keithley.current*1000/area)
             # print(np.mean(meas_currents),np.std(meas_currents))
             self.res_fwd_curr.append(np.mean(fwd_currents))
             self.res_fwd_volt.append(np.mean(fwd_voltages))
@@ -911,7 +911,7 @@ class MainWindow(QtWidgets.QMainWindow):
                     self.keithley.source_voltage = i
                     QtTest.QTest.qWait(int(time*1000))
                     rev_voltages.append(i)
-                    rev_currents.append(self.keithley.current/area)
+                    rev_currents.append(self.keithley.current*1000/area)
                 # print(np.mean(rev_currents),np.std(rev_currents))
                 self.res_bkw_curr.append(np.mean(rev_currents))
                 self.res_bkw_volt.append(np.mean(rev_voltages))
@@ -948,7 +948,7 @@ class MainWindow(QtWidgets.QMainWindow):
         # mpp_test_power = []
         max_voltage = mpp_voltage
         time_c = time()
-        for i in np.arange(0,mpp_total_time/3,mpp_int_time/1000):##TODO this time does not work, it's longer
+        for i in np.arange(0,mpp_total_time/3,mpp_int_time/1000):
             voltage_test = [max_voltage-mpp_step , max_voltage , max_voltage+mpp_step]
             mpp_test_current = []
             mpp_test_voltage = []
@@ -959,7 +959,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 ## Wait for stabilized measurement
                 QtTest.QTest.qWait(int(mpp_int_time))
                 ## Measure current & voltage
-                m_current = self.keithley.current/area
+                m_current = self.keithley.current*1000/area
                 m_voltage = self.keithley.voltage
                 
                 mpp_test_current.append(m_current)
@@ -980,7 +980,6 @@ class MainWindow(QtWidgets.QMainWindow):
                 to = time() - time_c
             elapsed_t = (time() - time_c - to)
             self.mpp_time.append(elapsed_t / 60)            
-            # time_c = time_c + mpp_int_time*3##TODO make it to measure real time, not calculated
             self.plot_mpp()
             # print(i, elapsed_t)
             if elapsed_t > mpp_total_time:
@@ -1037,7 +1036,7 @@ class MainWindow(QtWidgets.QMainWindow):
     def reset_plot_mpp(self):
         self.canvas.axes.cla()
         self.canvas.axes.set_xlabel('Time (min)')
-        self.canvas.axes.set_ylabel('Power (W)')
+        self.canvas.axes.set_ylabel('Power (mW/cm²)')
         self.canvas.axes.grid(True,linestyle='--')
         self.canvas.axes.set_xlim([0,2])
         self.canvas.axes.set_ylim([5,25])
