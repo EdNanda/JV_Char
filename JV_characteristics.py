@@ -12,6 +12,8 @@ from PyQt5.QtWidgets import QSizePolicy,QMessageBox, QGroupBox
 from PyQt5.QtCore import QObject, QThread, pyqtSignal, QRunnable, pyqtSlot, QThreadPool
 from PyQt5.QtCore import Qt, QTimer
 from PyQt5.QtGui import QFont
+from PyQt5.QtWidgets import QTableView, QApplication
+from PyQt5.QtCore import QAbstractTableModel, Qt, QModelIndex
 
 
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg, NavigationToolbar2QT as NavigationToolbar
@@ -27,11 +29,13 @@ import pyvisa as visa
 import pandas as pd
 import numpy as np
 import os
+import serial
 import math
 import random 
 from time import time, sleep, strftime, localtime
 from datetime import datetime
 import traceback
+from decimal import Decimal
 
 # global size
 # size = 2046
@@ -102,7 +106,31 @@ class Worker(QObject):
         # self.finished.emit()
         # self.keithley.disable_source()
         
-        
+class TableModel(QAbstractTableModel):
+
+    def __init__(self, data):
+        super(TableModel, self).__init__()
+        self._data = data
+
+    def data(self, index, role):
+        if role == Qt.DisplayRole:
+            value = self._data.iloc[index.row(), index.column()]
+            return str(value)
+
+    def rowCount(self, index):
+        return self._data.shape[0]
+
+    def columnCount(self, index):
+        return self._data.shape[1]
+
+    def headerData(self, section, orientation, role):
+        # section is the index of the column/row.
+        if role == Qt.DisplayRole:
+            if orientation == Qt.Horizontal:
+                return str(self._data.columns[section])
+
+            if orientation == Qt.Vertical:
+                return str(self._data.index[section])        
         
 ## This makes the plot happen
 class MplCanvas(FigureCanvasQTAgg):
@@ -135,8 +163,7 @@ class MainWindow(QtWidgets.QMainWindow):
         np.seterr(divide='ignore', invalid='ignore')
         
         self.statusBar().showMessage("Program by Edgar Nandayapa - 2022",10000)
-        
-        # rm = visa.ResourceManager()
+
         try:
             ## Modify this in case multiple keithleys
             rm = visa.ResourceManager() ##Load piVisa
@@ -147,6 +174,27 @@ class MainWindow(QtWidgets.QMainWindow):
             device = None
             self.keithley = None
             self.statusBar().showMessage("####    Keithley not found    ####")
+           
+        
+        try:
+            # susi = serial.Serial()  # open serial port
+            self.susi = serial.Serial("COM3")
+            self.susi.baudrate = 9600
+            self.susi.bytesize = 8
+            self.susi.parity = 'N'
+            self.susi.stopbits = 1
+            self.susi.timeout = 5
+            self.susi_bool = True
+            
+        except:
+            ##TODO pop-up window saying there is no susi
+            self.susi_bool = False
+            
+            if not self.keithley:
+                self.statusBar().showMessage("####    Keithley and SuSi not found    ####")
+            else:
+                self.statusBar().showMessage("####    SuSi not found    ####")
+            
 
         self.threadpool = QThreadPool()
                
@@ -169,28 +217,37 @@ class MainWindow(QtWidgets.QMainWindow):
         toolbar = NavigationToolbar(self.canvas, self)
         
         ##JV characteristics fields
+        # Ljvvars = QGridLayout()
+        # Ljvvars.addWidget(QLabel(" "),0,0)
+        # Ljvvars.addWidget(QLabel("Voc\n V"),0,1,Qt.AlignCenter)
+        # Ljvvars.addWidget(QLabel(" Jsc\n mA/cm²"),0,2,Qt.AlignCenter)
+        # Ljvvars.addWidget(QLabel("FF\n %"),0,3,Qt.AlignCenter)
+        # Ljvvars.addWidget(QLabel("PCE\n %"),0,4,Qt.AlignCenter)
+        # Ljvvars.addWidget(QLabel("V_mpp\n       V"),0,5,Qt.AlignCenter)
+        # Ljvvars.addWidget(QLabel("J_mpp\n  mA/cm²"),0,6,Qt.AlignCenter)
+        # Ljvvars.addWidget(QLabel("P_mpp\n    mW/cm²"),0,7,Qt.AlignCenter)
+        # Ljvvars.addWidget(QLabel("R_series\n  \U00002126cm²"),0,8,Qt.AlignCenter)
+        # Ljvvars.addWidget(QLabel("R_shunt\n  \U00002126cm²"),0,9,Qt.AlignCenter)
+        # Ljvvars.addWidget(QLabel("Forward "),1,0,Qt.AlignCenter)
+        # Ljvvars.addWidget(QLabel("Backward"),2,0,Qt.AlignCenter)
         
+        # self.jvvals =[]
+        # for j in range(1,3):
+        #     for i in range(1,10):
+        #         lab = QLabel("0.00")
+        #         Ljvvars.addWidget(lab,j,i,Qt.AlignCenter)
+        #         self.jvvals.append(lab)
+        self.Ljvvars = QTableView()
+        self.Ljvvars.resize(600, 10)
+        # self.jvvals.horizontalHeader().setStretchLastSection(True)
+        self.Ljvvars.setAlternatingRowColors(True)
+        self.Ljvvars.setSelectionBehavior(QTableView.SelectRows)
+        # self.Ljvvars.setColumnWidth(10)
         
-        Ljvvars = QGridLayout()
-        Ljvvars.addWidget(QLabel(" "),0,0)
-        Ljvvars.addWidget(QLabel("Voc\n V"),0,1,Qt.AlignCenter)
-        Ljvvars.addWidget(QLabel(" Jsc\n mA/cm²"),0,2,Qt.AlignCenter)
-        Ljvvars.addWidget(QLabel("FF\n %"),0,3,Qt.AlignCenter)
-        Ljvvars.addWidget(QLabel("PCE\n %"),0,4,Qt.AlignCenter)
-        Ljvvars.addWidget(QLabel("V_mpp\n       V"),0,5,Qt.AlignCenter)
-        Ljvvars.addWidget(QLabel("J_mpp\n  mA/cm²"),0,6,Qt.AlignCenter)
-        Ljvvars.addWidget(QLabel("P_mpp\n    mW/cm²"),0,7,Qt.AlignCenter)
-        Ljvvars.addWidget(QLabel("R_series\n  \U00002126cm²"),0,8,Qt.AlignCenter)
-        Ljvvars.addWidget(QLabel("R_shunt\n  \U00002126cm²"),0,9,Qt.AlignCenter)
-        Ljvvars.addWidget(QLabel("Forward "),1,0,Qt.AlignCenter)
-        Ljvvars.addWidget(QLabel("Backward"),2,0,Qt.AlignCenter)
+        jvstart = pd.DataFrame(columns = ["Voc\n(V)","Jsc\n(mA/cm²)","FF\n(%)","PCE\n(%)","V_mpp\n(V)","J_mpp\n(mA/cm²)","P_mpp\n(mW/cm²)","R_series\n\U00002126cm²","R_shunt\n\U00002126cm²"])
         
-        self.jvvals =[]
-        for j in range(1,3):
-            for i in range(1,10):
-                lab = QLabel("0.00")
-                Ljvvars.addWidget(lab,j,i,Qt.AlignCenter)
-                self.jvvals.append(lab)
+        self.model = TableModel(jvstart)
+        self.Ljvvars.setModel(self.model)
                 
         # print(len(self.jvvals))         
         #[isc, voc, ff, pce, mpp_p, mpp_c, mpp_v, r_ser, r_par
@@ -209,11 +266,12 @@ class MainWindow(QtWidgets.QMainWindow):
         ## Add Widgets to the layout
         layV1.addWidget(toolbar)
         layV1.addWidget(self.canvas)
-        layV1.addLayout(Ljvvars)
+        layV1.addWidget(self.Ljvvars)
         
         ## Add first vertical layout to the main horizontal one
         layH1.addLayout(layV1,5)
         
+        ##TODO show current value somewhere
         
         ### Make second vertical layout for measurement settings
         layV2 = QtWidgets.QVBoxLayout()
@@ -283,7 +341,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.curr_lim.setText("300")
         self.sam_area.setText("0.04")
         self.pow_dens.setText("100")
-        self.sun_ref.setText("16.5")
+        self.sun_ref.setText("130.3")
         # self.cell_num.setText("1")#module
         
         ## Position labels and field in a grid
@@ -313,30 +371,54 @@ class MainWindow(QtWidgets.QMainWindow):
         
         
         ## Third set of setup values
-        self.forw_rev = QCheckBox()
+        sbb = 15
+        self.for_bmL = QCheckBox()
+        self.rev_bmL = QCheckBox()
+        self.for_bmD = QCheckBox()
+        self.rev_bmD = QCheckBox()
+        self.for_bmL.setMaximumWidth(sbb)
+        self.rev_bmL.setMaximumWidth(sbb)
+        self.for_bmD.setMaximumWidth(sbb)
+        self.rev_bmD.setMaximumWidth(sbb)
         self.dark_meas = QCheckBox()
         self.four_wire = QCheckBox()
         self.logyaxis = QCheckBox()
-        self.forw_rev.setChecked(True)
-        self.four_wire.setChecked(True)
+        self.for_bmL.setChecked(True)
+        self.rev_bmL.setChecked(True)
+        self.four_wire.setChecked(False)
         self.refCurrent = QToolButton(self)
         self.refCurrent.setText("Current (Reference)")
         self.refCurrent.setFixedSize(int(sMW*2.3), 40)
         self.refCurrent.setCheckable(True)
+        self.susiShutter = QToolButton(self)
+        self.susiShutter.setText("SuSi Shutter")
+        self.susiShutter.setFixedSize(int(sMW*2.3), 40)
+        self.susiShutter.setCheckable(True)
+        label_for = QLabel("\U0001F80A")
+        label_rev = QLabel("\U0001F808")
+        label_for.setFont(QFont("Arial", 14))
+        label_rev.setFont(QFont("Arial", 14))
+        self.label_currcurr = QLabel("")
         # self.refPower.setMaximumWidth(sMW*2)
 
         Lsetup = QGridLayout()
+        Lsetup.setColumnMinimumWidth(1,0)
+        Lsetup.setColumnMinimumWidth(2,0)
         Lsetup.addWidget(QLabel(" "),0,0)
-        Lsetup.addWidget(QLabel("Forward & Reverse"),1,0,Qt.AlignRight)
-        Lsetup.addWidget(self.forw_rev,1,1,Qt.AlignLeft)
-        # Lsetup.addWidget(self.BBrightDel,1,2)
-        Lsetup.addWidget(QLabel("Dark measurement"),2,0,Qt.AlignRight)
-        Lsetup.addWidget(self.dark_meas,2,1,Qt.AlignLeft)
-        Lsetup.addWidget(QLabel("4-Wire"),3,0,Qt.AlignRight)
-        Lsetup.addWidget(self.four_wire,3,1,Qt.AlignLeft)
-        Lsetup.addWidget(QLabel("log Y-axis"),4,0,Qt.AlignRight)
-        Lsetup.addWidget(self.logyaxis,4,1,Qt.AlignLeft)
-        Lsetup.addWidget(self.refCurrent,2,1,2,1,Qt.AlignRight)
+        Lsetup.addWidget(label_for,1,1)
+        Lsetup.addWidget(label_rev,1,2)
+        Lsetup.addWidget(QLabel("Light measurement"),2,0,Qt.AlignRight)
+        Lsetup.addWidget(self.for_bmL,2,1)
+        Lsetup.addWidget(self.rev_bmL,2,2)
+        Lsetup.addWidget(QLabel("Dark measurement"),3,0,Qt.AlignRight)
+        Lsetup.addWidget(self.for_bmD,3,1)
+        Lsetup.addWidget(self.rev_bmD,3,2)
+        Lsetup.addWidget(QLabel("4-Wire"),4,0,Qt.AlignRight)
+        Lsetup.addWidget(self.four_wire,4,1)
+        Lsetup.addWidget(QLabel("log Y-axis"),5,0,Qt.AlignRight)
+        Lsetup.addWidget(self.logyaxis,5,1)
+        Lsetup.addWidget(self.refCurrent,2,3,2,1,Qt.AlignRight)
+        Lsetup.addWidget(self.susiShutter,4,3,2,1,Qt.AlignRight)
 
         Lsetup.addWidget(QLabel(" "),5,0)
         
@@ -347,6 +429,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.BStart.setFont(QFont("Arial", 14, QFont.Bold))
         self.BStart.setStyleSheet("color : green;")
         LGlabels.addWidget(self.BStart,1,0,1,4)
+        LGlabels.addWidget(self.label_currcurr,2,0,1,1)
         # Lsetup.addRow(" ",QFrame())
         
         mppLabels = QGridLayout()
@@ -482,6 +565,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.BsaveM.clicked.connect(self.save_meta)
         self.BloadM.clicked.connect(self.load_meta)
         self.refCurrent.clicked.connect(self.reference_current_measure)
+        self.susiShutter.clicked.connect(self.SuSi_button)
     #     self.LEinttime.returnPressed.connect(self.set_integration_time)
     #     self.SBinttime.valueChanged.connect(self.scrollbar_action)
     #     self.BDarkMeas.clicked.connect(self.dark_measurement)
@@ -600,41 +684,13 @@ class MainWindow(QtWidgets.QMainWindow):
         
         
         if not self.mpp_bool:
-            # if "Ref. Current(mA)" in self.setup_labs_jv:
-            #     self.setup_vals_jv[-2] = self.Rcurrent
-            #     self.setup_vals_jv[-1] = self.RsunP
-            # else:
-            #     self.setup_labs_jv = self.setup_labs_jv + ["Ref. Current(mA)","Sun%"]
-            #     self.setup_vals_jv = self.setup_vals_jv + [self.Rcurrent,self.RsunP]
-                
             all_metaD_labs = self.setup_labs_jv+self.exp_labels+self.glv_labels
             all_metaD_vals = self.setup_vals_jv+self.exp_vars+self.glv_vars
             
         else:
-            # if "Ref. Current(mA)" in self.setup_labs_mpp:
-            #     self.setup_labs_mpp[-2] = self.Rcurrent
-            #     self.setup_labs_mpp[-1] = self.RsunP
-            # else:
-            #     self.setup_labs_mpp = self.setup_labs_mpp+["Ref. Current(mA)","Sun%"]
-            #     self.setup_vals_mpp = self.setup_vals_mpp+[self.Rcurrent,self.RsunP]
-                
             all_metaD_labs = self.setup_labs_mpp+self.exp_labels+self.glv_labels
             all_metaD_vals = self.setup_vals_mpp+self.exp_vars+self.glv_vars
         
-        ## Gather all relevant information
-        # if self.forw_rev.isChecked():
-        #     addit_data = [self.res_fwd_volt,self.res_fwd_curr,self.res_bkw_volt,self.res_bkw_curr]
-        #     addit_labl = ["Voltage_fwd (V)", "Current_fwd (mA)","Voltage_bkw (V)", "Current_bkw (mA)"]
-        # else:
-        #     addit_data = [self.res_fwd_volt,self.res_fwd_curr]
-        #     addit_labl = ["Voltage_fwd (V)", "Current_fwd (mA)"]
-        # all_metaD_labs
-        # all_metaD_labs = self.setup_labs_jv+self.exp_labels+self.glv_labels
-        # all_metaD_vals = self.setup_vals_jv+self.exp_vars+self.glv_vars
-        # all_metaD_labs_jv = self.setup_labs_jv+self.exp_labels+self.glv_labels
-        # all_metaD_vals_jv = self.setup_vals_jv+self.exp_vars+self.glv_vars
-        # all_metaD_labs_mpp = self.setup_labs_jv+self.exp_labels+self.glv_labels
-        # all_metaD_vals_mpp = self.setup_vals_jv+self.exp_vars+self.glv_vars
 
         ## Add data to dictionary
         try:
@@ -664,13 +720,9 @@ class MainWindow(QtWidgets.QMainWindow):
             self.keithley.wires = 4
         else:
             self.keithley.wires = 2
+        print(self.keithley.wires)
     
     def dis_enable_widgets(self, status):
-        ##Disable the following buttons and fields
-        # wi_dis = [self.LEinttime,self.Binttime,self.SBinttime,#self.BStart,
-        #           self.LEsample,self.LEuser,self.LEfolder,self.BBrightMeas,
-        #           self.BDarkMeas,self.LEdeltime,self.LEmeatime,self.Bfolder,
-        #           self.Bpath]
         
         wi_dis = self.setup_vals_jv + [self.Bfolder,self.Bpath,self.refCurrent]
         
@@ -678,57 +730,48 @@ class MainWindow(QtWidgets.QMainWindow):
             # TODO fix stop button
             if status:
                 wd.setEnabled(False)
-                # self.BStart.setText("S T O P")
+                self.BStart.setText("S T O P")
                 self.BStart.setStyleSheet("color : red;")
+                self.meas_live = True
             else:
                 wd.setEnabled(True)
                 self.BStart.setText("START")
                 self.BStart.setStyleSheet("color : green;")
+                self.meas_live = False
     
     def jv_char_display(self):
-        # jv_char = [voc,isc,ff,pce, mpp_v,mpp_c,mpp_p, r_ser,r_par]
-        names = ["Voc(V)","Jsc(mA/cm²)","FF(%)","PCE(%)","V_mpp(V)","J_mpp(mA/cm²)","P_mpp(mW/cm²)","R_series(Ohm.cm²)","R_shunt(Ohm.cm²)"]
-        empty = ["","","","","","","","",""]
+        names = ["Voc (V)","Jsc (mA/cm²)","FF (%)","PCE (%)","V_mpp (V)","J_mpp (mA/cm²)","P_mpp (mW/cm²)","R_series (\U00002126cm²)","R_shunt (\U00002126cm²)"]
+        names_f = [na.replace(" ","") for na in names] 
+        names_t = [na.replace(" ","\n") for na in names]
+        # empty = ["","","","","","","","",""]
         
-        if self.jv_bkw:
-            # print(names,self.jv_fwd,self.jv_bkw)
-            self.jv_char_results = pd.DataFrame([self.jv_fwd,self.jv_bkw], columns=names)
-            vals = self.jv_fwd + self.jv_bkw
-            for i, ac in enumerate(self.jvvals):
-                ac.setText(str(round(vals[i],2)))
-                
-            self.jv_char_results = self.jv_char_results.T
-            self.jv_char_results.columns = ["Forward","Backward"]
-        else:
-            self.jv_char_results = pd.DataFrame([self.jv_fwd], columns=names)
-            vals = self.jv_fwd + empty
-            for i, ac in enumerate(self.jvvals):
-                if vals[i] == "":
-                    ac.setText("")
-                else:
-                    ac.setText(str(round(vals[i],2)))
-            
-            self.jv_char_results = self.jv_char_results.T
-            self.jv_char_results.columns = ["Forward"]
-            
-            
-        # self.jv_char_results.T.set_index("Name")
+        self.jv_chars_results = self.jv_chars_results.T
+        self.jv_chars_results.columns = names_f
         
-        # self.jv_char_results = self.jv_char_results.T
-        # self.jv_char_results.columns = ["Forward","Backward"]
+        values = self.jv_chars_results.copy()
+        values.columns = names_t
         
-        # print(self.jv_char_results.T)
+        for  v in values.index:
+            if "Dark" in v:
+                values = values.drop([v],axis=1)
+            else:
+                values.rename(index = {v:v[:-6]},inplace=True)
+            
+        self.model = TableModel(values.round(3))
+        self.Ljvvars.setModel(self.model)
+
     
     def save_data(self):
         self.mpp_bool = False
         self.gather_all_metadata()
+        ## TODO fix save here
         metadata = pd.DataFrame.from_dict(self.meta_dict, orient='index')
         
-        if self.jv_bkw:
-            jv_data = pd.DataFrame({"Voltage_fwd (V)":self.res_fwd_volt,"Current_fwd (mA/cm²)":self.res_fwd_curr,
-                                    "Voltage_bkw (V)":self.res_bkw_volt,"Current_bkw (mA/cm²)":self.res_bkw_curr})
-        else:
-            jv_data = pd.DataFrame({"Voltage_fwd (V)":self.res_fwd_volt,"Current_fwd (mA/cm²)":self.res_fwd_curr})
+        # if self.jv_bkw:
+        #     jv_data = pd.DataFrame({"Voltage_fwd (V)":self.res_fwd_volt,"Current_fwd (mA/cm²)":self.res_fwd_curr,
+        #                             "Voltage_bkw (V)":self.res_bkw_volt,"Current_bkw (mA/cm²)":self.res_bkw_curr})
+        # else:
+        #     jv_data = pd.DataFrame({"Voltage_fwd (V)":self.res_fwd_volt,"Current_fwd (mA/cm²)":self.res_fwd_curr})
             
             
         empty = pd.DataFrame(data={"":["--"]})
@@ -736,11 +779,11 @@ class MainWindow(QtWidgets.QMainWindow):
         filename = self.folder+self.sample+"_JV_characteristics.csv"
         metadata.to_csv(filename, index = True, header = False)
         empty.to_csv(filename, mode="a", index=False, header=False, line_terminator='\n')
-        self.jv_char_results.to_csv(filename, mode="a", index=True, header=True)
+        self.jv_chars_results.T.to_csv(filename, mode="a", index=True, header=True)
         empty.to_csv(filename, mode="a", index=False, header=False, line_terminator='\n')
-        jv_data.to_csv(filename, mode="a", index=False, header = True)
+        self.curr_volt_results.to_csv(filename, mode="a", index=False, header = True)
         
-
+        # print(self.curr_volt_results)
         self.statusBar().showMessage("Data saved successfully", 5000)
     #     # get_ipython().magic('reset -sf')
         
@@ -793,10 +836,12 @@ class MainWindow(QtWidgets.QMainWindow):
     
         self.keithley.source_voltage = 0
         self.Rcurrent = self.keithley.current*1000
-        self.RsunP = self.Rcurrent/ref
+        self.RsunP = self.Rcurrent/ref*100
         
         self.refCurrent.setText("Ref. current  (Sun%)\n"+str(round(self.Rcurrent,2))+
                                 "   ("+str(round(self.RsunP,2))+")")
+        
+        self.pow_dens.setText(str(round(self.RsunP,2)))
         
         self.keithley.disable_source()
 
@@ -850,7 +895,7 @@ class MainWindow(QtWidgets.QMainWindow):
         mpp_p = mpp_v * mpp_c
         
         ## Calculate FF
-        ff = mpp_v*mpp_c/(voc*isc)
+        ff = mpp_v*mpp_c/(voc*isc)*100
         
         ## Calculate PCE (this is wrong, it needs correct P_in)
         # pin = 75#mW/cm²
@@ -859,64 +904,171 @@ class MainWindow(QtWidgets.QMainWindow):
         
         jv_char = [voc,isc,ff,pce, mpp_v,mpp_c,mpp_p, r_ser,r_par]
 
-        return jv_char      
+        return jv_char    
     
-
-    def jv_measurement(self):
-        ## Reset values
-        self.jv_fwd = []
-        self.jv_bkw = []
+    def SuSi_button(self):
+        answer = self.SuSi_check()
         
+        if "SHUTTER=0" in answer:
+            self.SuSi_light_on()
+        else:
+            self.SuSi_light_off()
+    
+    def SuSi_check(self):
+        self.susi.write(b'FS') #Read data
+        susi_ans = self.susi.read_until(b"END\r\n")
+        
+        return susi_ans
+        
+    
+    def SuSi_light_on(self):
+        if self.susi_bool:
+            susi_state = self.SuSi_check()
+            #TODO check correct string
+            if "SHUTTER=0" in susi_state: ##it is closed, open
+                self.susi.write(b'S1') #Shutter Open
+            else:
+                pass## it is already open
+        else:
+            pass## There is no SuSi, so skip
+    
+    def SuSi_light_off(self):
+        if self.susi_bool:
+            susi_state = self.SuSi_check()
+            if "SHUTTER=1" in susi_state: ##it is closed, open
+                self.susi.write(b'S0') #Shutter Closed
+            else:
+                pass## it is already open
+        ##TODO if False, make a popup so it can be done manually
+    
+    def namestr(self,obj, namespace):
+        return [name for name in namespace if namespace[name] is obj]
+
+    def fix_data_and_send_to_measure(self):
         area = float(self.sam_area.text())
         self.reset_plot_jv()
         volt_begin = float(self.volt_start.text())
         volt_end = float(self.volt_end.text())
         time_step = float(self.volt_step.text())
         
-        average_points = int(self.ave_pts.text())
+        ap = int(self.ave_pts.text())
         time = float(self.set_time.text())
-        
-        self.dis_enable_widgets(True)
-        
-        self.statusBar().showMessage("Measuring JV curve")
-        
-        
-        self.keithley.enable_source()
         
         self.res_fwd_curr = []
         self.res_fwd_volt = []
         self.res_bkw_curr = []
         self.res_bkw_volt = []
         
-        for i in np.arange(volt_begin, volt_end+time_step*0.95, time_step):
-            fwd_currents = []
-            fwd_voltages = []
-            for t in range(average_points):
-                self.keithley.source_voltage = i
-                QtTest.QTest.qWait(int(time*1000))
-                fwd_voltages.append(i)
-                fwd_currents.append(self.keithley.current*1000/area)
-            # print(np.mean(meas_currents),np.std(meas_currents))
-            self.res_fwd_curr.append(np.mean(fwd_currents))
-            self.res_fwd_volt.append(np.mean(fwd_voltages))
-            self.plot_jv()
-        self.jv_fwd = self.jv_chars_calculation(self.res_fwd_volt, self.res_fwd_curr)
+        forwa_vars = [volt_begin, volt_end+time_step*0.95,  time_step]
+        rever_vars = [volt_end, volt_begin-time_step*0.95, -time_step]
+        fixed_vars = [time,ap,area]
+        
+        check_box_buttons = [self.for_bmD,self.rev_bmD, self.for_bmL,self.rev_bmL]
+        
+        self.jv_chars_results = pd.DataFrame()
+        self.curr_volt_results = pd.DataFrame()
+        
+        ##TODO with multiplexing, there will be another loop here that goes through the cells
+        for n, cbb in enumerate(check_box_buttons):
+            if cbb.isChecked():
+                if n == 0 or n == 1: #if it is a dark measurement
+                    self.SuSi_light_off()
+                    ilum = "Dark"
+                else:
+                    self.SuSi_light_on()
+                    ilum = "Light"
+                
+                
+                if n == 0 or n == 2: ## if it is forward
+                    direc = "Forward"
+                    all_vars = forwa_vars + fixed_vars +[ilum+direc]
+                else:
+                    direc = "Reverse"
+                    all_vars = rever_vars + fixed_vars +[ilum+direc]
+                    
+                
+                # print(all_vars)
+                volt, curr, chars = self.curr_volt_measurement(all_vars)
+                
+                self.jv_chars_results[direc+"_"+ilum] = chars
+                self.curr_volt_results["Voltage_"+direc+"_"+ilum] = volt
+                self.curr_volt_results["Current_"+direc+"_"+ilum] = curr
+                # print(self.curr_volt_results)
             
-        if self.forw_rev.isChecked(): 
-            rev_voltages = []
-            for i in np.arange(volt_end, volt_begin-time_step*0.95, -time_step):
-                rev_currents = []
-                rev_voltages = []
-                for t in range(average_points):
+            
+    def display_current(self,value,live=True):
+        if live:
+            if abs(value) < 0.01:
+                label = '{:.2e}'.format(value)
+            else:
+                label = '{:.2f}'.format(value)
+            
+            self.label_currcurr.setText("Live :   "+str(label)+"   mA/cm²")
+            
+        else:
+            self.label_currcurr.setText("")
+            
+    def curr_volt_measurement(self, variables):
+        
+        volt_0 = variables[0]
+        volt_f = variables[1]
+        step = variables[2]
+        time = variables[3]
+        average_points = variables[4]
+        area = variables[5]
+        mode = variables[6]
+        
+        current = []
+        voltage = []
+        
+        for i in np.arange(volt_0, volt_f, step):
+            meas_currents = []
+            meas_voltages = []
+            for t in range(average_points):
+                if self.meas_live:
                     self.keithley.source_voltage = i
                     QtTest.QTest.qWait(int(time*1000))
-                    rev_voltages.append(i)
-                    rev_currents.append(self.keithley.current*1000/area)
-                # print(np.mean(rev_currents),np.std(rev_currents))
-                self.res_bkw_curr.append(np.mean(rev_currents))
-                self.res_bkw_volt.append(np.mean(rev_voltages))
-                self.plot_jv()
-            self.jv_bkw = self.jv_chars_calculation(self.res_bkw_volt, self.res_bkw_curr)
+                    meas_voltages.append(i)
+                    meas_currents.append(self.keithley.current*1000/area)
+                else:
+                    meas_voltages.append(np.nan)
+                    meas_currents.append(np.nan)
+
+            ave_curr = np.mean(meas_currents)
+            self.display_current(ave_curr)
+            current.append(ave_curr)
+            voltage.append(np.mean(meas_voltages))
+            
+            self.plot_jv(voltage,current,mode)
+            
+        jv_chars = self.jv_chars_calculation(voltage, current)
+        self.display_current(ave_curr,False)
+        
+        return voltage, current, jv_chars
+        
+
+    def jv_measurement(self):
+        ## Reset values
+        
+        # self.jv_bkw = []
+        
+        # area = float(self.sam_area.text())
+        # self.reset_plot_jv()
+        # volt_begin = float(self.volt_start.text())
+        # volt_end = float(self.volt_end.text())
+        # time_step = float(self.volt_step.text())
+        
+        # average_points = int(self.ave_pts.text())
+        # time = float(self.set_time.text())
+        
+        self.dis_enable_widgets(True)
+        
+        self.statusBar().showMessage("Measuring JV curve")
+                
+        self.keithley.enable_source()
+        
+        self.fix_data_and_send_to_measure()
+        
 
         self.jv_char_display()
 
@@ -944,8 +1096,6 @@ class MainWindow(QtWidgets.QMainWindow):
         self.mpp_power = []
         self.mpp_time = []
         
-        # mpp_test_current = []
-        # mpp_test_power = []
         max_voltage = mpp_voltage
         time_c = time()
         for i in np.arange(0,mpp_total_time/3,mpp_int_time/1000):
@@ -1005,6 +1155,31 @@ class MainWindow(QtWidgets.QMainWindow):
         self.spectra_counter = 0
         self.counter = 0
         self.array_count = 0
+        
+    def collect_all_values_iv(self, voltage=[],current=[]):
+        ## Gather all measurements till now
+        volt = []
+        curr = []
+        try:
+            # print(self.curr_volt_results.keys())
+            for key in self.curr_volt_results.keys():
+                if "Volt" in key:
+                    volt.append(self.curr_volt_results[key].values.tolist()[0])
+                elif "Curr" in key:
+                    curr.append(self.curr_volt_results[key].values.tolist()[0])
+                else:
+                    pass
+        except:
+            volt = [-0.01,0.01]
+            curr = [-0.01,0.01]
+            
+        volt = volt + voltage
+        curr = curr + current
+        
+        # print(volt)
+        # print(curr)
+        
+        return volt,curr
 
     
     def yaxis_to_log(self):
@@ -1013,7 +1188,9 @@ class MainWindow(QtWidgets.QMainWindow):
         else:
             self.canvas.axes.set_yscale('linear')
         
-        self.center_plot()
+        volt, curr = self.collect_all_values_iv()
+
+        self.center_plot(volt,curr)
         
         self.canvas.draw_idle()
             
@@ -1027,10 +1204,10 @@ class MainWindow(QtWidgets.QMainWindow):
         self.canvas.axes.set_ylim([-25,5])
         self.canvas.axes.axhline(0, color='black')
         self.canvas.axes.axvline(0, color='black')
-        if self.logyaxis.isChecked():
-            self.canvas.axes.set_yscale('log')
-        else:
-            self.canvas.axes.set_yscale('linear')
+        # if self.logyaxis.isChecked():
+        #     self.canvas.axes.set_yscale('log')
+        # else:
+        #     self.canvas.axes.set_yscale('linear')
         self._plot_ref = None
         
     def reset_plot_mpp(self):
@@ -1042,55 +1219,79 @@ class MainWindow(QtWidgets.QMainWindow):
         self.canvas.axes.set_ylim([5,25])
         self.canvas.axes.axhline(0, color='black')
         self.canvas.axes.axvline(0, color='black')
-        if self.logyaxis.isChecked():
-            self.canvas.axes.set_yscale('log')
-        else:
-            self.canvas.axes.set_yscale('linear')
+        # if self.logyaxis.isChecked():
+        #     self.canvas.axes.set_yscale('log')
+        # else:
+        #     self.canvas.axes.set_yscale('linear')
         self._plot_ref = None
         
 
 
-    def plot_jv(self):
+    def plot_jv(self,voltage,current,mode):
         ## Make plot
         if self._plot_ref is None:
-            self._plot_ref = self.canvas.axes.plot(self.res_fwd_volt, self.res_fwd_curr, 'xb-', label="Forward")
-                        
-            if self.forw_rev.isChecked():
-                self._plot_ref = self.canvas.axes.plot(self.res_bkw_volt, self.res_bkw_curr, '.r--', label="Backward")
-            self.canvas.axes.legend()
+            if "Forward" in mode:
+                self._plot_ref = self.canvas.axes.plot(voltage, current, 'xb-', label="Forward")
+                
+            else:
+                self._plot_ref = self.canvas.axes.plot(voltage, current, '.r--', label="Backward")
+                self.canvas.axes.legend()
         else:
-            self.canvas.axes.plot(self.res_fwd_volt, self.res_fwd_curr, 'xb-')
-            if self.forw_rev.isChecked():
-                self.canvas.axes.plot(self.res_bkw_volt, self.res_bkw_curr, '.r--')
+            if "Forward" in mode:
+                self.canvas.axes.plot(voltage, current, 'xb-')
+            else:
+                self.canvas.axes.plot(voltage, current, '.r--')
             
-        if self.logyaxis.isChecked():
-            self.canvas.axes.set_yscale('log')
-        else:
-            self.canvas.axes.set_yscale('linear')
+        # if self.logyaxis.isChecked():
+        #     self.canvas.axes.set_yscale('log')
+        # else:
+        #     self.canvas.axes.set_yscale('linear')
         
-        self.center_plot()
+        volt, curr = self.collect_all_values_iv(voltage,current)
+        self.center_plot(volt,curr)
         
         ## Draw plot
         self.canvas.draw_idle()
         
         
-    def center_plot(self):
+    def center_plot(self,voltage, current):
+        # print(voltage)
+        # print(current)
+        
+        if self.logyaxis.isChecked():
+            current = [cu for cu in current if cu > 0]
+        else:
+            pass
+        
+
         ## Get min and max values to center plot
-        min_x = np.min(np.append(self.res_fwd_volt,self.res_bkw_volt))
-        max_x = np.max(np.append(self.res_fwd_volt,self.res_bkw_volt))
-        min_y = np.min(np.append(self.res_fwd_curr,self.res_bkw_curr))
-        max_y = np.max(np.append(self.res_fwd_curr,self.res_bkw_curr))
+        if not voltage:
+            min_x = -0.1
+            max_x = 0.1
+            min_y = -0.1
+            max_y = 0.1
+        else:            
+            min_x = min(voltage)
+            max_x = np.max(voltage)
+            min_y = np.min(current)
+            max_y = np.max(current)
+
         
         ex = (max_x-min_x)*0.05
         ey = (max_y-min_y)*0.05
         
         room = 0.05
-        if min_x != max_x:
-            self.canvas.axes.set_ylim([min_y-ey,max_y+ey])
-            self.canvas.axes.set_xlim([min_x-ex,max_x+ex])
-        else:
-            self.canvas.axes.set_ylim([min_y-room,max_y+room])
-            self.canvas.axes.set_xlim([min_x-room,max_x+room])
+        
+        try:
+            if min_x != max_x:
+                self.canvas.axes.set_ylim([min_y-ey,max_y+ey])
+                self.canvas.axes.set_xlim([min_x-ex,max_x+ex])
+            else:
+                self.canvas.axes.set_ylim([min_y-room,max_y+room])
+                self.canvas.axes.set_xlim([min_x-room,max_x+room])
+        except:
+            self.canvas.axes.set_ylim([-0.1,0.1])
+            self.canvas.axes.set_xlim([-0.1,0.1])
             
         
     def plot_mpp(self):
@@ -1101,10 +1302,10 @@ class MainWindow(QtWidgets.QMainWindow):
         else:
             self.canvas.axes.plot(self.mpp_time, self.mpp_power, 'xb-')
 
-        if self.logyaxis.isChecked():
-            self.canvas.axes.set_yscale('log')
-        else:
-            self.canvas.axes.set_yscale('linear')
+        # if self.logyaxis.isChecked():
+        #     self.canvas.axes.set_yscale('log')
+        # else:
+        #     self.canvas.axes.set_yscale('linear')
             
         ## Get min and max values to center plot
         min_x = np.min(self.mpp_time)
@@ -1126,55 +1327,10 @@ class MainWindow(QtWidgets.QMainWindow):
         ## Draw plot
         self.canvas.draw_idle()
 
-
-
-            
-    # def during_measurement(self):## To update values in GUI
-    #     ## This updates the number of measurements that will be made
-    #     self.LAframes.setText(str(self.counter)+"/"+str(self.total_frames))
-    #     ## This is to show the elapsed time
-    #     self.elapsed_time = time()-self.start_time
-    #     minute, second = divmod(self.elapsed_time,60)
-    #     self.LAelapse.setText("{:02}:{:02}".format(int(minute),int(second)))
-
-    #     ## Dissable widgets during the measurement time        
-    #     if self.counter < self.total_frames:
-    #         self.dis_enable_widgets(True)
-
-    #     else: ## Re-enable widgets after measurement is done
-    #         self.dis_enable_widgets(False)
-    #         self.counter = 0
-    #         self.measuring = False
-    #         self.save_data()
-
-    #     self.counter +=1
-        
-    
-    # def send_to_Qthread(self):
-    #     ## Create a QThread object
-    #     self.thread = QThread()
-    #     ## Create a worker object and send function to it
-    #     self.worker = Worker(self.get_ydata)
-    #     ## Whenever signal exists, send it to plot
-    #     self.worker.signals.progress.connect(self.plot_spectra)
-    #     ## Start threadpool
-    #     # self.threadpool.start(self.worker)
         
     def finished_plotting(self):
         self.statusBar().showMessage("Plotting process finished and images saved",5000)
-        
-    # def Qthread_plotting(self,func):
-    #     ## Create a QThread object
-    #     self.thread = QThread()
-    #     ## Create a worker object and send function to it
-    #     self.worker = Worker(func)
-    #     ## Whenever signal exists, send it to plot
-    #     self.thread.finished.connect(self.finished_plotting)
-    #     ## Start threadpool
-    #     self.threadpool.start(self.worker)
-        
-
-        
+              
     def closeEvent(self, event):
         reply = QMessageBox.question(self,'Window Close', 'Are you sure you want to close the window?',
                                      QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
