@@ -333,7 +333,7 @@ class MainWindow(QtWidgets.QMainWindow):
         
         ## Set widget texts
         self.volt_start.setText("-0.2")
-        self.volt_end.setText("0.8")
+        self.volt_end.setText("0.65")
         self.volt_step.setText("0.05")
         self.ave_pts.setText("3")
         self.int_time.setText("0.1")
@@ -653,23 +653,21 @@ class MainWindow(QtWidgets.QMainWindow):
         folder = self.LEfolder.text()
         metafile = QtWidgets.QFileDialog.getOpenFileName(self, "Choose your metadata file", folder)
         # print(metafile[0])
-        metadata = pd.read_csv(metafile[0], header=None, index_col=0, squeeze=True, nrows=21)
+        # metadata = pd.read_csv(metafile[0], header=None, index_col=0, squeeze=True, nrows=21)
+        metadata = pd.read_csv(metafile[0], header=None, index_col=0, nrows=21)
         # print(metadata)
-        labels = self.setup_labs+self.exp_labels
-        objects = self.setup_vals+self.exp_vars
+        labels = self.setup_labs_jv+self.exp_labels
+        objects = self.setup_vals_jv+self.exp_vars
         
         for cc,oo in enumerate(objects):
             if labels[cc] == "Sample":
                 pass
             else:
-                if labels[cc] == "Material":
-                    try:
-                        oo.setText(metadata["Perovskite"])
-                    except:
-                        oo.setText(str(metadata["Material"]))
-                else:
-                    oo.setText(str(metadata[labels[cc]]))
-        self.LEfolder.setText(metadata["Folder"])
+                    # print(cc, labels[cc])
+                    # print(metadata.loc[labels[cc]])
+                    oo.setText(metadata.loc[labels[cc]][1])
+                    
+        # self.LEfolder.setText(metadata.loc["Folder"])
         
         self.statusBar().showMessage("Metadata successfully loaded", 5000)
     
@@ -738,22 +736,32 @@ class MainWindow(QtWidgets.QMainWindow):
                 self.BStart.setText("START")
                 self.BStart.setStyleSheet("color : green;")
                 self.meas_live = False
-    
-    def jv_char_display(self):
+                
+    def jv_char_save_file(self):
         names = ["Voc (V)","Jsc (mA/cm²)","FF (%)","PCE (%)","V_mpp (V)","J_mpp (mA/cm²)","P_mpp (mW/cm²)","R_series (\U00002126cm²)","R_shunt (\U00002126cm²)"]
         names_f = [na.replace(" ","") for na in names] 
-        names_t = [na.replace(" ","\n") for na in names]
+        # names_t = [na.replace(" ","\n") for na in names]
         # empty = ["","","","","","","","",""]
         
         self.jv_chars_results = self.jv_chars_results.T
         self.jv_chars_results.columns = names_f
         
-        values = self.jv_chars_results.copy()
+    def jv_char_display(self):
+        names = ["Voc (V)","Jsc (mA/cm²)","FF (%)","PCE (%)","V_mpp (V)","J_mpp (mA/cm²)","P_mpp (mW/cm²)","R_series (\U00002126cm²)","R_shunt (\U00002126cm²)"]
+        # names_f = [na.replace(" ","") for na in names] 
+        names_t = [na.replace(" ","\n") for na in names]
+        # empty = ["","","","","","","","",""]
+        
+        # self.jv_chars_results = self.jv_chars_results.T
+        # self.jv_chars_results.columns = names_f
+        
+        values = self.jv_chars_results.T.copy()
         values.columns = names_t
         
         for  v in values.index:
             if "Dark" in v:
-                values = values.drop([v],axis=1)
+                values = values.drop(index = v,axis=1)
+                self.jv_chars_results = self.jv_chars_results.drop(columns = v, axis=0)
             else:
                 values.rename(index = {v:v[:-6]},inplace=True)
             
@@ -908,11 +916,13 @@ class MainWindow(QtWidgets.QMainWindow):
     
     def SuSi_button(self):
         answer = self.SuSi_check()
-        
-        if "SHUTTER=0" in answer:
-            self.SuSi_light_on()
-        else:
+        # print(answer)
+        if b"SHUTTER=0" in answer:
+            # print("yes")
             self.SuSi_light_off()
+        else:
+            # print("no")
+            self.SuSi_light_on()
     
     def SuSi_check(self):
         self.susi.write(b'FS') #Read data
@@ -923,23 +933,16 @@ class MainWindow(QtWidgets.QMainWindow):
     
     def SuSi_light_on(self):
         if self.susi_bool:
-            susi_state = self.SuSi_check()
-            #TODO check correct string
-            if "SHUTTER=0" in susi_state: ##it is closed, open
-                self.susi.write(b'S1') #Shutter Open
-            else:
-                pass## it is already open
-        else:
-            pass## There is no SuSi, so skip
+            self.susi.write(b'S0') #Shutter Open
+            self.susiShutter.setText("SuSi Shutter (Opened)")
+            QtTest.QTest.qWait(int(2*1000))
     
     def SuSi_light_off(self):
         if self.susi_bool:
-            susi_state = self.SuSi_check()
-            if "SHUTTER=1" in susi_state: ##it is closed, open
-                self.susi.write(b'S0') #Shutter Closed
-            else:
-                pass## it is already open
-        ##TODO if False, make a popup so it can be done manually
+            self.susi.write(b'S1') #Shutter Closed
+            self.susiShutter.setText("SuSi Shutter (Closed)")
+            QtTest.QTest.qWait(int(2*1000))
+            
     
     def namestr(self,obj, namespace):
         return [name for name in namespace if namespace[name] is obj]
@@ -990,13 +993,17 @@ class MainWindow(QtWidgets.QMainWindow):
                 # print(all_vars)
                 volt, curr, chars = self.curr_volt_measurement(all_vars)
                 
+                # print(chars)
+                # print(self.jv_chars_results)
                 self.jv_chars_results[direc+"_"+ilum] = chars
                 self.curr_volt_results["Voltage_"+direc+"_"+ilum] = volt
                 self.curr_volt_results["Current_"+direc+"_"+ilum] = curr
+                
+                self.jv_char_display()
                 # print(self.curr_volt_results)
             
             
-    def display_current(self,value,live=True):
+    def display_live_current(self,value,live=True):
         if live:
             if abs(value) < 0.01:
                 label = '{:.2e}'.format(value)
@@ -1035,31 +1042,21 @@ class MainWindow(QtWidgets.QMainWindow):
                     meas_currents.append(np.nan)
 
             ave_curr = np.mean(meas_currents)
-            self.display_current(ave_curr)
+            self.display_live_current(ave_curr)
             current.append(ave_curr)
             voltage.append(np.mean(meas_voltages))
             
             self.plot_jv(voltage,current,mode)
             
         jv_chars = self.jv_chars_calculation(voltage, current)
-        self.display_current(ave_curr,False)
+        self.display_live_current(ave_curr,False)
+        
         
         return voltage, current, jv_chars
         
 
     def jv_measurement(self):
         ## Reset values
-        
-        # self.jv_bkw = []
-        
-        # area = float(self.sam_area.text())
-        # self.reset_plot_jv()
-        # volt_begin = float(self.volt_start.text())
-        # volt_end = float(self.volt_end.text())
-        # time_step = float(self.volt_step.text())
-        
-        # average_points = int(self.ave_pts.text())
-        # time = float(self.set_time.text())
         
         self.dis_enable_widgets(True)
         
@@ -1068,12 +1065,11 @@ class MainWindow(QtWidgets.QMainWindow):
         self.keithley.enable_source()
         
         self.fix_data_and_send_to_measure()
-        
 
-        self.jv_char_display()
-
+        self.SuSi_light_off()
         self.keithley.disable_source()
         self.dis_enable_widgets(False)
+        self.jv_char_save_file()
         
         self.save_data()
         
@@ -1230,18 +1226,54 @@ class MainWindow(QtWidgets.QMainWindow):
     def plot_jv(self,voltage,current,mode):
         ## Make plot
         if self._plot_ref is None:
-            if "Forward" in mode:
-                self._plot_ref = self.canvas.axes.plot(voltage, current, 'xb-', label="Forward")
+            # if "Forward" in mode:
+            #     self._plot_ref = self.canvas.axes.plot(voltage, current, 'xb-', label="Forward")
                 
+            # else:
+            #     self._plot_ref = self.canvas.axes.plot(voltage, current, '.r--', label="Backward")
+            if "Light" in mode:
+                if "Forward" in mode:
+                    
+                    self._plot_ref = self.canvas.axes.plot(voltage, current, 'xb-', label="Forward")
+                    
+                else:
+                    self._plot_ref = self.canvas.axes.plot(voltage, current, '.r--', label="Backward")
             else:
-                self._plot_ref = self.canvas.axes.plot(voltage, current, '.r--', label="Backward")
-                self.canvas.axes.legend()
-        else:
-            if "Forward" in mode:
-                self.canvas.axes.plot(voltage, current, 'xb-')
-            else:
-                self.canvas.axes.plot(voltage, current, '.r--')
+                if "Forward" in mode:
+                    self._plot_ref = self.canvas.axes.plot(voltage, current, linestyle='--', marker='x', color='black', label="Dark For")
+                    
+                else:
+                    self._plot_ref = self.canvas.axes.plot(voltage, current, linestyle='--', marker='.', color='grey', label="Dark Back")
             
+            
+        else:
+            if "Light" in mode:
+                if "Forward" in mode:
+                    self.canvas.axes.plot(voltage, current, 'xb-')
+                else:
+                    self.canvas.axes.plot(voltage, current, '.r--')
+            else:
+                if "Forward" in mode:
+                    self.canvas.axes.plot(voltage, current, linestyle='--', marker='x', color='black')
+                else:
+                    self.canvas.axes.plot(voltage, current, linestyle='--', marker='.', color='grey')
+                
+        self.canvas.axes.legend()
+            
+        # if "Light" in mode:
+        #     if "Forward" in mode:
+                
+        #         self._plot_ref = self.canvas.axes.plot(voltage, current, 'xb-', label="Forward")
+                
+        #     else:
+        #         self._plot_ref = self.canvas.axes.plot(voltage, current, '.r--', label="Backward")
+        # else:
+        #     if "Forward" in mode:
+        #         self._plot_ref = self.canvas.axes.plot(voltage, current, 'black-', label="Dark For")
+                
+        #     else:
+        #         self._plot_ref = self.canvas.axes.plot(voltage, current, 'gray--', label="Dark Back")
+                
         # if self.logyaxis.isChecked():
         #     self.canvas.axes.set_yscale('log')
         # else:
@@ -1338,6 +1370,8 @@ class MainWindow(QtWidgets.QMainWindow):
             print('Window closed')
             if self.keithley:
                 self.keithley.disable_source()
+            if self.susi_bool:
+                self.susi.close()
             event.accept()
             # if self.spectrometer:
             #     self.spec.close()
