@@ -55,7 +55,7 @@ class TableModel(QAbstractTableModel):
                 return value.strftime("%Y-%m-%d")
 
             if isinstance(value, float):
-                if value < 0.001:
+                if abs(value) < 0.001:
                     return "%.2e" % value
                 else:
                     return "%.3f" % value
@@ -259,9 +259,9 @@ class MainWindow(QtWidgets.QMainWindow):
         self.int_time.setText("0.1")
         self.set_time.setText("0.1")
         self.curr_lim.setText("300")
-        self.sam_area.setText("0.04")
+        self.sam_area.setText("2")
         self.pow_dens.setText("100")
-        self.sun_ref.setText("130.3")
+        self.sun_ref.setText("74")
         # self.cell_num.setText("1")#module
 
         ## Position labels and field in a grid
@@ -369,8 +369,8 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.mpp_ttime.setText("1")
         self.mpp_inttime.setText("100")
-        self.mpp_stepSize.setText("0.01")
-        self.mpp_voltage.setText("0.9")
+        self.mpp_stepSize.setText("0.001")
+        self.mpp_voltage.setText("0.45")
 
         mppLabels.addWidget(self.mpptitle, 0, 0, 1, 3)
         mppLabels.addWidget(QLabel("Total time (min)  "), 1, 0, Qt.AlignRight)
@@ -790,7 +790,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.keithley.source_voltage = 0
         self.Rcurrent = self.keithley.current * 1000
-        self.RsunP = self.Rcurrent / ref * 100
+        self.RsunP = abs(self.Rcurrent / ref * 100)
 
         self.keithley.disable_source()
 
@@ -799,7 +799,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.test_actual_current()
 
         self.refCurrent.setText("Ref. current  (Sun%)\n" + str(round(self.Rcurrent, 2)) +
-                                "   (" + str(round(self.RsunP, 2)) + ")")
+                                " mA  (" + str(round(self.RsunP, 2)) + ")")
 
         self.pow_dens.setText(str(round(self.RsunP, 2)))
 
@@ -876,12 +876,18 @@ class MainWindow(QtWidgets.QMainWindow):
         self.susi.write(b'C1')  # Enable cooling
         QtTest.QTest.qWait(int(1 * 1000))
         self.SuSi_light_off()
-        QtTest.QTest.qWait(int(3 * 1000))
+        QtTest.QTest.qWait(int(1 * 1000))
         self.susi.write(b'L1')  # Light On
         QtTest.QTest.qWait(int(1 * 1000))
         self.susi.write(b'P=0905')  # Set light intensity
 
     def SuSi_intesity_fix(self):
+        self.SuSi_dialog()
+        # self.dlg.setWindowModality(Qt.ApplicationModal)
+        self.dlg.exec_()
+
+    def SuSi_dialog(self):
+        self.SuSi_light_on()
         self.dlg = QDialog()
         self.dlg.setWindowTitle("SuSi Intensity Set-up")
 
@@ -892,15 +898,21 @@ class MainWindow(QtWidgets.QMainWindow):
         self.Bsusi_set = QToolButton()
         self.Lcurrcurr = QLabel("")
         self.Bcurrtest = QToolButton()
+        self.bsave = QToolButton()
+        self.bcancel = QToolButton()
 
         self.susi_intensity.setMaximumWidth(60)
         self.Bsusi_set.setMaximumWidth(40)
         self.Bcurrtest.setMaximumWidth(40)
+        self.bsave.setMaximumWidth(40)
+        self.bcancel.setMaximumWidth(40)
 
         self.Bsusi_set.setText("Set")
         self.Bcurrtest.setText("Test")
-        bsave = QDialogButtonBox(QDialogButtonBox.Save)
-        bcancel = QDialogButtonBox(QDialogButtonBox.Cancel)
+        self.bsave.setText("Save")
+        self.bcancel.setText("Cancel")
+        # bsave = QDialogButtonBox(QDialogButtonBox.Save)
+        # bcancel = QDialogButtonBox(QDialogButtonBox.Cancel)
 
         ## Active widgets
 
@@ -910,18 +922,15 @@ class MainWindow(QtWidgets.QMainWindow):
         layout.addWidget(QLabel("Measure Ref:"), 1, 0)
         layout.addWidget(self.Lcurrcurr, 1, 1)
         layout.addWidget(self.Bcurrtest, 1, 2)
-        layout.addWidget(bsave, 2, 0)
-        layout.addWidget(bcancel, 2, 2)
+        layout.addWidget(self.bsave, 2, 0)
+        layout.addWidget(self.bcancel, 2, 2)
 
         self.dlg.setLayout(layout)
 
-        bcancel.clicked.connect(self.dialog_close)
-        bsave.clicked.connect(self.dialog_save)
-        self.Bsusi_set.connect(self.dialog_set_intensity)
-        self.Bcurrtest.connect(self.dialog_test_current)
-
-        self.dlg.setWindowModality(Qt.ApplicationModal)
-        self.dlg.exec_()
+        self.bcancel.clicked.connect(self.dialog_close)
+        self.bsave.clicked.connect(self.dialog_save)
+        self.Bsusi_set.clicked.connect(self.dialog_set_intensity)
+        self.Bcurrtest.clicked.connect(self.dialog_test_current)
 
 
     def dialog_close(self):
@@ -944,13 +953,16 @@ class MainWindow(QtWidgets.QMainWindow):
             int_val = intensity
 
         value = "{:04d}".format(int_val)
-        self.susi.write(b'P='+value)  # Set light intensity
+        message = "P="+value
+        print(b"P=0750")
+        print(message.encode('utf-8'))
+        self.susi.write(message.encode('utf-8'))  # Set light intensity
         QtTest.QTest.qWait(int(3 * 1000))
 
     def dialog_test_current(self):
         self.test_actual_current()
 
-        self.refCurrent.setText(str(self.Rcurrent)+" mA")
+        self.Lcurrcurr.setText(str(round(self.Rcurrent,2))+" mA")
 
     def susim_check(self):
 
@@ -1030,9 +1042,9 @@ class MainWindow(QtWidgets.QMainWindow):
     def display_live_voltage(self, value, live=True):
         if live:
             if abs(value) < 0.01:
-                label = '{:.2e}'.format(value)
+                label = '{:.3e}'.format(value)
             else:
-                label = '{:.2f}'.format(value)
+                label = '{:.3f}'.format(value)
 
             self.label_currvolt.setText("Live :   " + str(label) + "   V")
 
@@ -1042,9 +1054,9 @@ class MainWindow(QtWidgets.QMainWindow):
     def display_live_current(self, value, live=True):
         if live:
             if abs(value) < 0.01:
-                label = '{:.2e}'.format(value)
+                label = '{:.3e}'.format(value)
             else:
-                label = '{:.2f}'.format(value)
+                label = '{:.3f}'.format(value)
 
             self.label_currcurr.setText("Live :   " + str(label) + "   mA/cm²")
 
@@ -1103,7 +1115,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.popup_message("JV measurement done")
 
     def mpp_measurement(self):
-
+        self.SuSi_light_on()
         if not self.is_meas_live:
             self.reset_plot_mpp()
             self.create_folder(True)
@@ -1130,6 +1142,7 @@ class MainWindow(QtWidgets.QMainWindow):
             time_c = time()
             for i in np.arange(0, mpp_total_time / 3, mpp_int_time / 1000):
                 voltage_test = [max_voltage - mpp_step, max_voltage, max_voltage + mpp_step]
+                print(voltage_test)
                 mpp_test_current = []
                 mpp_test_voltage = []
                 mpp_test_power = []
@@ -1142,7 +1155,7 @@ class MainWindow(QtWidgets.QMainWindow):
                         ## Measure current & voltage
                         ## TODO why is V_mpp from JV not matching here?
                         m_current = self.keithley.current * 1000 / area
-                        m_voltage = self.keithley.voltage
+                        m_voltage = v#self.keithley.voltage
 
                         mpp_test_current.append(m_current)
                         mpp_test_voltage.append(m_voltage)
@@ -1153,12 +1166,13 @@ class MainWindow(QtWidgets.QMainWindow):
 
 
                 index_max = mpp_test_power.index(max(mpp_test_power))
+                print(index_max)
                 # self.display_live_current(mpp_test_current[index_max])
 
                 self.mpp_current.append(mpp_test_current[index_max])
                 # print(mpp_test_power, index_max)
                 max_voltage = mpp_test_voltage[index_max]
-                # print(max_voltage)
+                print(max_voltage)
                 self.res_mpp_voltage.append(max_voltage)
                 self.display_live_voltage(max_voltage)
                 self.display_live_current(mpp_test_current[index_max])
@@ -1181,6 +1195,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.display_live_current(0, False)
         self.display_live_voltage(0, False)
         self.dis_enable_widgets(False, "mpp")
+        self.SuSi_light_off()
 
         self.save_mpp()
         self.popup_message("MPP measurement done")
