@@ -451,19 +451,24 @@ class MainWindow(QtWidgets.QMainWindow):
         self.BsaveM = QToolButton()
         self.BloadM = QToolButton()
         self.Bsusi_intensity = QToolButton()
+        self.Bsusi_off = QToolButton()
         self.BsaveM.setText("Save")
         self.BloadM.setText("Load")
         self.Bsusi_intensity.setText("Set")
+        self.Bsusi_off.setText("Off")
         self.BsaveM.setMaximumWidth(40)
         self.BloadM.setMaximumWidth(40)
         self.Bsusi_intensity.setMaximumWidth(40)
+        self.Bsusi_off.setMaximumWidth(40)
 
         LGmeta.addWidget(QLabel(""), 0, 0)
         LGmeta.addWidget(QLabel("Metadata:"), 0, 1)
         LGmeta.addWidget(QLabel("SuSi Intensity:"), 1, 1, 1, 2)
+        LGmeta.addWidget(QLabel("SuSi Off:"), 2, 1)
         LGmeta.addWidget(self.BsaveM, 0, 2)
         LGmeta.addWidget(self.BloadM, 0, 3)
         LGmeta.addWidget(self.Bsusi_intensity, 1, 3)
+        LGmeta.addWidget(self.Bsusi_off, 2, 3)
 
         ## Position layouts inside of the third vertical layout V3
         layV3.addItem(verticalSpacerV2)
@@ -504,8 +509,8 @@ class MainWindow(QtWidgets.QMainWindow):
         #     self.SBinttime.valueChanged.connect(self.scrollbar_action)
         #     self.BDarkMeas.clicked.connect(self.dark_measurement)
         #     self.BBrightMeas.clicked.connect(self.bright_measurement)
-        self.BStart.clicked.connect(self.press_start_jv)
-        self.mppStart.clicked.connect(self.press_start_mpp)
+        self.BStart.clicked.connect(self.jv_measurement)
+        self.mppStart.clicked.connect(self.mpp_measurement)
         self.logyaxis.stateChanged.connect(self.yaxis_to_log)
         self.four_wire.stateChanged.connect(self.two_four_wires_measurement)
 
@@ -588,12 +593,11 @@ class MainWindow(QtWidgets.QMainWindow):
     def load_meta(self):
         folder = self.LEfolder.text()
         metafile = QtWidgets.QFileDialog.getOpenFileName(self, "Choose your metadata file", folder)
-        # print(metafile[0])
-        # metadata = pd.read_csv(metafile[0], header=None, index_col=0, squeeze=True, nrows=21)
-        metadata = pd.read_csv(metafile[0], header=None, index_col=0, nrows=21)
-        # print(metadata)
-        labels = self.setup_labs_jv + self.exp_labels
-        objects = self.setup_vals_jv + self.exp_vars
+        if metafile:
+            metadata = pd.read_csv(metafile[0], header=None, index_col=0, nrows=21)
+            # print(metadata)
+            labels = self.setup_labs_jv + self.exp_labels
+            objects = self.setup_vals_jv + self.exp_vars
 
         for cc, oo in enumerate(objects):
             if labels[cc] == "Sample":
@@ -688,7 +692,7 @@ class MainWindow(QtWidgets.QMainWindow):
             self.mppStart.setText("START")
             self.mppStart.setStyleSheet("color : Blue;")
 
-    def jv_char_save_file(self):
+    def fix_jv_chars_for_save(self):
         names = ["Voc (V)", "Jsc (mA/cm²)", "FF (%)", "PCE (%)", "V_mpp (V)", "J_mpp (mA/cm²)", "P_mpp (mW/cm²)",
                  "R_series (\U00002126cm²)", "R_shunt (\U00002126cm²)"]
         names_f = [na.replace(" ", "") for na in names]
@@ -698,15 +702,12 @@ class MainWindow(QtWidgets.QMainWindow):
         self.jv_chars_results = self.jv_chars_results.T
         self.jv_chars_results.columns = names_f
 
-    def jv_char_display(self):
+    def jv_char_qtabledisplay(self):
         names = ["Voc (V)", "Jsc (mA/cm²)", "FF (%)", "PCE (%)", "V_mpp (V)", "J_mpp (mA/cm²)", "P_mpp (mW/cm²)",
                  "R_series (\U00002126cm²)", "R_shunt (\U00002126cm²)"]
         # names_f = [na.replace(" ","") for na in names] 
         names_t = [na.replace(" ", "\n") for na in names]
-        # empty = ["","","","","","","","",""]
 
-        # self.jv_chars_results = self.jv_chars_results.T
-        # self.jv_chars_results.columns = names_f
 
         values = self.jv_chars_results.T.copy()
         values.columns = names_t
@@ -718,16 +719,14 @@ class MainWindow(QtWidgets.QMainWindow):
             else:
                 values.rename(index={v: v[:-6]}, inplace=True)
 
-        # for va in values:
-        #     if isinstance(va, str):
-        #         skip
-        #     elif va < 0.001:
-        #         va = "{:0.3e}".format(va)
-        #     else:
-        #         va = "{:0.3f}".format(va)
-
         self.model = TableModel(values)
         self.Ljvvars.setModel(self.model)
+
+    def vmpp_value_to_tracking(self):
+        vmpp = round(self.jv_chars_results[4],3)
+        self.mpp_voltage.setText(str(vmpp))
+
+
 
     def save_data(self):
         self.mpp_bool = False
@@ -766,19 +765,19 @@ class MainWindow(QtWidgets.QMainWindow):
         self.res_mpp_voltage = []
         self.mpp_power = []
 
-    def press_start_jv(self):
+    def keithley_startup_setup(self):
         curr_limit = float(self.curr_lim.text())
         self.keithley.apply_voltage(compliance_current=curr_limit / 1000)
-        self.keithley.measure_current(nplc=1, current=0.135, auto_range=True)
+        self.keithley.measure_current(nplc=1, current=0.5, auto_range=True)
 
-        self.jv_measurement()
+        # self.jv_measurement()
 
-    def press_start_mpp(self):
-        curr_limit = float(self.curr_lim.text())
-        self.keithley.apply_voltage(compliance_current=curr_limit / 1000)
-        self.keithley.measure_current(nplc=1, current=0.135, auto_range=True)
-
-        self.mpp_measurement()
+    # def press_start_mpp(self):
+    #     curr_limit = float(self.curr_lim.text())
+    #     self.keithley.apply_voltage(compliance_current=curr_limit / 1000)
+    #     self.keithley.measure_current(nplc=1, current=0.5, auto_range=True)
+    #
+    #     self.mpp_measurement()
 
 
     def test_actual_current(self):
@@ -863,31 +862,47 @@ class MainWindow(QtWidgets.QMainWindow):
         return jv_char
 
     def SuSi_button(self):
-        answer = self.susim_check()
-        # print(answer)
-        if b"SHUTTER=0" in answer:
-            # print("yes")
-            self.SuSi_light_off()
-        else:
-            # print("no")
-            self.SuSi_light_on()
+        if self.is_susi:
+            answer = self.susim_check()
+            # print(answer)
+            if b"SHUTTER=0" in answer:
+                # print("yes")
+                self.SuSi_shutter_close()
+            else:
+                # print("no")
+                self.SuSi_shutter_open()
 
     def SuSi_startup(self):
-        self.susi.write(b'C1')  # Enable cooling
-        QtTest.QTest.qWait(int(1 * 1000))
-        self.SuSi_light_off()
-        QtTest.QTest.qWait(int(1 * 1000))
-        self.susi.write(b'L1')  # Light On
-        QtTest.QTest.qWait(int(1 * 1000))
-        self.susi.write(b'P=0905')  # Set light intensity
+        if self.is_susi:
+            self.susi.write(b'C1')  # Enable cooling
+            QtTest.QTest.qWait(int(1 * 1000))
+            self.susi.write(b'L1')  # Light On
+            QtTest.QTest.qWait(int(1 * 1000))
+            self.SuSi_startup_intensity()
+            QtTest.QTest.qWait(int(1 * 1000))
+
+    def SuSi_shutdown(self):
+        if self.is_susi:
+            self.SuSi_shutter_close()
+            QtTest.QTest.qWait(int(1 * 1000))
+            self.susi.write(b'L0')  # Light On
+            QtTest.QTest.qWait(int(1 * 1000))
+
+
+    def SuSi_startup_intensity(self,intensity=90.5):
+        if self.is_susi:
+            #TODO read log file and get that intensity / remove 90.5 above
+            self.set_intensity_susim(intensity)
 
     def SuSi_intesity_fix(self):
-        self.SuSi_dialog()
-        # self.dlg.setWindowModality(Qt.ApplicationModal)
-        self.dlg.exec_()
+        if self.is_susi:
+            self.SuSi_dialog()
+            # TODO if no susi, then no possibility to modify this
+            # self.dlg.setWindowModality(Qt.ApplicationModal)
+            self.dlg.exec_()
 
     def SuSi_dialog(self):
-        self.SuSi_light_on()
+        self.SuSi_shutter_open()
         self.dlg = QDialog()
         self.dlg.setWindowTitle("SuSi Intensity Set-up")
 
@@ -911,19 +926,18 @@ class MainWindow(QtWidgets.QMainWindow):
         self.Bcurrtest.setText("Test")
         self.bsave.setText("Save")
         self.bcancel.setText("Cancel")
-        # bsave = QDialogButtonBox(QDialogButtonBox.Save)
-        # bcancel = QDialogButtonBox(QDialogButtonBox.Cancel)
 
         ## Active widgets
-
-        layout.addWidget(QLabel("Set Intensity:"), 0, 0)
+        layout.addWidget(QLabel("Set Intensity (%):"), 0, 0)
         layout.addWidget(self.susi_intensity, 0, 1)
         layout.addWidget(self.Bsusi_set, 0, 2)
-        layout.addWidget(QLabel("Measure Ref:"), 1, 0)
-        layout.addWidget(self.Lcurrcurr, 1, 1)
-        layout.addWidget(self.Bcurrtest, 1, 2)
-        layout.addWidget(self.bsave, 2, 0)
-        layout.addWidget(self.bcancel, 2, 2)
+        layout.addWidget(QLabel("Range: 75-105%"), 1, 0)
+        layout.addWidget(QLabel("Measure Ref:"), 2, 0)
+        layout.addWidget(self.Lcurrcurr, 2, 1)
+        layout.addWidget(self.Bcurrtest, 2, 2)
+        layout.addWidget(self.bsave, 3, 0)
+        layout.addWidget(self.bcancel, 3, 2)
+        # TODO  add other configuraiton values here, like sun intensity and current
 
         self.dlg.setLayout(layout)
 
@@ -934,7 +948,6 @@ class MainWindow(QtWidgets.QMainWindow):
 
 
     def dialog_close(self):
-
         self.dlg.close()
 
     def dialog_save(self):
@@ -945,19 +958,26 @@ class MainWindow(QtWidgets.QMainWindow):
     def dialog_set_intensity(self):
         intensity = int(self.susi_intensity.text())
 
-        if intensity > 1050:
-            int_val = 1050
-        elif intensity < 750:
-            int_val = 750
+        if intensity > 105:
+            int_val = 105
+        elif intensity < 75:
+            int_val = 75
         else:
             int_val = intensity
 
-        value = "{:04d}".format(int_val)
-        message = "P="+value
-        print(b"P=0750")
-        print(message.encode('utf-8'))
-        self.susi.write(message.encode('utf-8'))  # Set light intensity
+        self.susi_intensity.setText(str(int_val))
+        self.set_intensity_susim(int_val)
+
         QtTest.QTest.qWait(int(3 * 1000))
+
+    def set_intensity_susim(self,intensity):
+        self.susi_start_intensity = intensity
+        intensity = intensity * 10
+        value = "{:04d}".format(intensity)
+        message = "P=" + value
+
+        self.susi.write(message.encode('utf-8'))  # Set light intensity
+
 
     def dialog_test_current(self):
         self.test_actual_current()
@@ -965,19 +985,19 @@ class MainWindow(QtWidgets.QMainWindow):
         self.Lcurrcurr.setText(str(round(self.Rcurrent,2))+" mA")
 
     def susim_check(self):
+        if self.is_susi:
+            self.susi.write(b'FS')  # Read data
+            susi_ans = self.susi.read_until(b"END\r\n")
 
-        self.susi.write(b'FS')  # Read data
-        susi_ans = self.susi.read_until(b"END\r\n")
+            return susi_ans
 
-        return susi_ans
-
-    def SuSi_light_on(self):
+    def SuSi_shutter_open(self):
         if self.is_susi:
             self.susi.write(b'S0')  # Shutter Open
             self.susiShutter.setText("SuSi Shutter (Opened)")
             QtTest.QTest.qWait(int(3 * 1000))
 
-    def SuSi_light_off(self):
+    def SuSi_shutter_close(self):
         if self.is_susi:
             self.susi.write(b'S1')  # Shutter Closed
             self.susiShutter.setText("SuSi Shutter (Closed)")
@@ -987,12 +1007,12 @@ class MainWindow(QtWidgets.QMainWindow):
         return [name for name in namespace if namespace[name] is obj]
 
     def fix_data_and_send_to_measure(self):
-        area = float(self.sam_area.text())
         self.reset_plot_jv()
+
+        area = float(self.sam_area.text())
         volt_begin = float(self.volt_start.text())
         volt_end = float(self.volt_end.text())
         time_step = float(self.volt_step.text())
-
         ap = int(self.ave_pts.text())
         time = float(self.set_time.text())
 
@@ -1014,10 +1034,10 @@ class MainWindow(QtWidgets.QMainWindow):
         for n, cbb in enumerate(check_box_buttons):
             if cbb.isChecked():
                 if n == 0 or n == 1:  # if it is a dark measurement
-                    self.SuSi_light_off()
+                    self.SuSi_shutter_close()
                     ilum = "Dark"
                 else:
-                    self.SuSi_light_on()
+                    self.SuSi_shutter_open()
                     ilum = "Light"
 
                 if n == 0 or n == 2:  ## if it is forward
@@ -1028,7 +1048,8 @@ class MainWindow(QtWidgets.QMainWindow):
                     all_vars = rever_vars + fixed_vars + [ilum + direc]
 
                 # print(all_vars)
-                volt, curr, chars = self.curr_volt_measurement(all_vars)
+                volt, curr = self.curr_volt_measurement(all_vars)
+                chars = self.jv_chars_calculation(volt, curr)
 
                 # print(chars)
                 # print(self.jv_chars_results)
@@ -1036,7 +1057,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 self.curr_volt_results["Voltage (V)_" + direc + "_" + ilum] = volt
                 self.curr_volt_results["Current Density(mA/cm²)_" + direc + "_" + ilum] = curr
 
-                self.jv_char_display()
+
                 # print(self.curr_volt_results)
 
     def display_live_voltage(self, value, live=True):
@@ -1080,7 +1101,9 @@ class MainWindow(QtWidgets.QMainWindow):
                     meas_voltages.append(i)
                     meas_currents.append(self.keithley.current * 1000 / area)
                 else:
-                    pass
+                    meas_voltages.append(np.nan)
+                    meas_currents.append(np.nan)
+                    # pass
 
             ave_curr = np.mean(meas_currents)
             self.display_live_current(ave_curr)
@@ -1090,13 +1113,14 @@ class MainWindow(QtWidgets.QMainWindow):
 
             self.plot_jv(voltage, current, mode)
 
-        jv_chars = self.jv_chars_calculation(voltage, current)
+        # jv_chars = self.jv_chars_calculation(voltage, current)
         self.display_live_current(ave_curr, False)
         self.display_live_voltage(0, False)
 
-        return voltage, current, jv_chars
+        return voltage, current
 
     def jv_measurement(self):
+        self.keithley_startup_setup()
         ## Reset values
         if not self.is_meas_live:
             self.create_folder(True)
@@ -1104,101 +1128,107 @@ class MainWindow(QtWidgets.QMainWindow):
             self.statusBar().showMessage("Measuring JV curve")
             self.keithley.enable_source()
             self.fix_data_and_send_to_measure()
-            self.jv_char_save_file()
-            self.save_data()
+            try:
+                self.vmpp_value_to_tracking()
+                self.jv_char_qtabledisplay()
+                self.fix_jv_chars_for_save()
+                self.save_data()
+            except:
+                pass
+            self.popup_message("JV measurement done")
 
-
-        self.SuSi_light_off()
+        self.SuSi_shutter_close()
         self.keithley.disable_source()
         self.dis_enable_widgets(False, "jv")
 
-        self.popup_message("JV measurement done")
+
 
     def mpp_measurement(self):
-        self.SuSi_light_on()
+        self.keithley_startup_setup()
         if not self.is_meas_live:
+            self.SuSi_shutter_open()
             self.reset_plot_mpp()
             self.create_folder(True)
-
             self.dis_enable_widgets(True, "mpp")
-
-            area = float(self.sam_area.text())
-
-            mpp_total_time = float(self.mpp_ttime.text()) * 60
-            mpp_int_time = float(self.mpp_inttime.text())
-            mpp_step = float(self.mpp_stepSize.text())
-            mpp_voltage = float(self.mpp_voltage.text())
-
-            self.statusBar().showMessage("Tracking Maximum Power Point")
-
             self.keithley.enable_source()
-
-            self.mpp_current = []
-            self.res_mpp_voltage = []
-            self.mpp_power = []
-            self.mpp_time = []
-
-            max_voltage = mpp_voltage
-            time_c = time()
-            for i in np.arange(0, mpp_total_time / 3, mpp_int_time / 1000):
-                voltage_test = [max_voltage - mpp_step, max_voltage, max_voltage + mpp_step]
-                print(voltage_test)
-                mpp_test_current = []
-                mpp_test_voltage = []
-                mpp_test_power = []
-
-                for v in voltage_test:
-                    if self.is_meas_live:
-                        self.keithley.source_voltage = v
-                        ## Wait for stabilized measurement
-                        QtTest.QTest.qWait(int(mpp_int_time))
-                        ## Measure current & voltage
-                        ## TODO why is V_mpp from JV not matching here?
-                        m_current = self.keithley.current * 1000 / area
-                        m_voltage = v#self.keithley.voltage
-
-                        mpp_test_current.append(m_current)
-                        mpp_test_voltage.append(m_voltage)
-                        mpp_test_power.append(abs(m_voltage * m_current))
-                    else:
-                        break
-
-
-
-                index_max = mpp_test_power.index(max(mpp_test_power))
-                print(index_max)
-                # self.display_live_current(mpp_test_current[index_max])
-
-                self.mpp_current.append(mpp_test_current[index_max])
-                # print(mpp_test_power, index_max)
-                max_voltage = mpp_test_voltage[index_max]
-                print(max_voltage)
-                self.res_mpp_voltage.append(max_voltage)
-                self.display_live_voltage(max_voltage)
-                self.display_live_current(mpp_test_current[index_max])
-
-                self.mpp_power.append(mpp_test_power[index_max])
-
-                if i == 0:
-                    tc = time() - time_c
-                    elapsed_t = 0
-                else:
-                    elapsed_t = (time() - time_c - tc)
-                self.mpp_time.append(elapsed_t / 60)
-                self.plot_mpp()
-
-                if elapsed_t > mpp_total_time:
-                    break
+            self.curr_volt_tracking()
+            self.save_mpp()
+            self.popup_message("MPP measurement done")
 
         self.keithley.disable_source()
+        self.SuSi_shutter_close()
+        self.dis_enable_widgets(False, "mpp")
+
+
+    def curr_volt_tracking(self):
+        area = float(self.sam_area.text())
+
+        mpp_total_time = float(self.mpp_ttime.text()) * 60
+        mpp_int_time = float(self.mpp_inttime.text())
+        mpp_step = float(self.mpp_stepSize.text())
+        mpp_voltage = float(self.mpp_voltage.text())
+
+        self.statusBar().showMessage("Tracking Maximum Power Point")
+
+        self.mpp_current = []
+        self.res_mpp_voltage = []
+        self.mpp_power = []
+        self.mpp_time = []
+
+        max_voltage = mpp_voltage
+        time_c = time()
+        for i in np.arange(0, mpp_total_time / 3, mpp_int_time / 1000):
+            voltage_test = [max_voltage - mpp_step, max_voltage, max_voltage + mpp_step]
+            # print(voltage_test)
+            mpp_test_current = []
+            mpp_test_voltage = []
+            mpp_test_power = []
+
+            for v in voltage_test:
+                if self.is_meas_live:
+                    self.keithley.source_voltage = v
+                    ## Wait for stabilized measurement
+                    QtTest.QTest.qWait(int(mpp_int_time))
+                    ## Measure current & voltage
+                    m_current = self.keithley.current * 1000 / area
+                    m_voltage = v#self.keithley.voltage
+
+                    mpp_test_current.append(m_current)
+                    mpp_test_voltage.append(m_voltage)
+                    mpp_test_power.append(abs(m_voltage * m_current))
+                else:
+                    mpp_test_current.append(np.nan)
+                    mpp_test_voltage.append(np.nan)
+                    mpp_test_power.append(np.nan)
+                    break
+
+            index_max = mpp_test_power.index(max(mpp_test_power))
+            self.mpp_current.append(mpp_test_current[index_max])
+            max_voltage = mpp_test_voltage[index_max]
+            self.res_mpp_voltage.append(max_voltage)
+
+            self.display_live_voltage(max_voltage)
+            self.display_live_current(mpp_test_current[index_max])
+
+            self.mpp_power.append(mpp_test_power[index_max])
+
+            if i == 0:
+                tc = time() - time_c
+                elapsed_t = 0
+            else:
+                elapsed_t = (time() - time_c - tc)
+
+            self.mpp_time.append(elapsed_t / 60)
+            try:
+                self.plot_mpp()
+            except:
+                pass
+
+            if elapsed_t > mpp_total_time:
+                break
 
         self.display_live_current(0, False)
         self.display_live_voltage(0, False)
-        self.dis_enable_widgets(False, "mpp")
-        self.SuSi_light_off()
-
-        self.save_mpp()
-        self.popup_message("MPP measurement done")
 
     def collect_all_values_iv(self, voltage=[], current=[]):
         ## Gather all measurements till now
@@ -1340,6 +1370,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
         else:
             self.canvas.axes.plot(self.mpp_time, self.mpp_power, 'xb-')
+            # TODO there an error here
 
         ## Get min and max values to center plot
         min_x = np.min(self.mpp_time)
@@ -1374,8 +1405,7 @@ class MainWindow(QtWidgets.QMainWindow):
             if self.is_susi:
                 self.susi.close()
             event.accept()
-            # if self.spectrometer:
-            #     self.spec.close()
+
         else:
             event.ignore()
 
