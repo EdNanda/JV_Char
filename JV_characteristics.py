@@ -1003,7 +1003,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def set_intensity_susim(self,intensity):
         self.susi_start_intensity = intensity
-        intensity = intensity * 10
+        intensity = int(intensity * 10)
         value = "{:04d}".format(intensity)
         message = "P=" + value
 
