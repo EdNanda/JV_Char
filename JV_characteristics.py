@@ -166,6 +166,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.setCentralWidget(self.canvas)
         self._plot_ref = None
         self.is_meas_live = False
+        self.is_first_plot = True
         ## Add a toolbar to control plotting area
         toolbar = NavigationToolbar(self.canvas, self)
 
@@ -891,7 +892,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def SuSi_startup_intensity(self,intensity=90.5):
         if self.is_susi:
-            #TODO read log file and get that intensity / remove 90.5 above
+            intensity = self.log_susi_open()
             self.set_intensity_susim(intensity)
 
     def SuSi_intesity_fix(self):
@@ -946,14 +947,44 @@ class MainWindow(QtWidgets.QMainWindow):
         self.Bsusi_set.clicked.connect(self.dialog_set_intensity)
         self.Bcurrtest.clicked.connect(self.dialog_test_current)
 
+    def log_susi_open(self):
+        logpath = "C:\\Data\\susi_log.txt"
+
+        try:
+            df = pd.read_csv(logpath,index_col=None)
+        except:
+            df = pd.DataFrame(columns=["Date", "Lamp Power(%)"])
+            df = self.log_susi_newinput(90.5, df)
+            df.to_csv(logpath, index = False)
+
+        intensity = df["Lamp Power(%)"].iloc[-1]
+
+        return intensity
+
+    def log_susi_save(self,intensity):
+        logpath = "C:\\Data\\susi_log.txt"
+
+        df = pd.read_csv(logpath, index_col=None)
+        df = self.log_susi_newinput(intensity, df)
+        df.to_csv(logpath, index=False)
+
+        return intensity
+
+
+    def log_susi_newinput(self, power,dframe):
+        now = localtime()
+        date = strftime("%Y-%m-%d %H:%M:%S", now)
+
+        # dframe.concat({"Date": time.strftime("%Y-%m-%d %H:%M:%S", now), "Lamp Power(%)": power}, ignore_index=True)
+        dframe.loc[len(dframe.index)] = [date, power]
+
+        return dframe
 
     def dialog_close(self):
         self.dlg.close()
 
-    def dialog_save(self):
-
-        print("hola")
-        ##TODO make the function for this and also set and test
+    def dialog_save(self,intensity):
+        self.log_susi_save(intensity)
 
     def dialog_set_intensity(self):
         intensity = int(self.susi_intensity.text())
@@ -1033,6 +1064,7 @@ class MainWindow(QtWidgets.QMainWindow):
         ##TODO with multiplexing, there will be another loop here that goes through the cells
         for n, cbb in enumerate(check_box_buttons):
             if cbb.isChecked():
+                self.is_first_plot = True
                 if n == 0 or n == 1:  # if it is a dark measurement
                     self.SuSi_shutter_close()
                     ilum = "Dark"
@@ -1261,9 +1293,9 @@ class MainWindow(QtWidgets.QMainWindow):
         else:
             self.canvas.axes.set_yscale('linear')
 
-        volt, curr = self.collect_all_values_iv()
+        volta, curre = self.collect_all_values_iv()
 
-        self.center_plot(volt, curr)
+        self.center_plot(volta, curre)
 
         self.canvas.draw_idle()
 
@@ -1291,23 +1323,25 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def plot_jv(self, voltage, current, mode):
         ## Make plot
-        if self._plot_ref is None:
-            ## TODO fix legend (only first appears)
+        # if self._plot_ref is None:
+        if self.is_first_plot:
             if "Light" in mode:
                 if "Forward" in mode:
-
                     self._plot_ref = self.canvas.axes.plot(voltage, current, 'xb-', label="Forward")
-
+                    self.is_first_plot = False
                 else:
                     self._plot_ref = self.canvas.axes.plot(voltage, current, '.r--', label="Backward")
+                    self.is_first_plot = False
             else:
                 if "Forward" in mode:
                     self._plot_ref = self.canvas.axes.plot(voltage, current, linestyle='--',
                                                            marker='x', color='black', label="Dark For")
+                    self.is_first_plot = False
 
                 else:
                     self._plot_ref = self.canvas.axes.plot(voltage, current, linestyle='--',
                                                            marker='.', color='grey',label="Dark Back")
+                    self.is_first_plot = False
 
         else:
             if "Light" in mode:
@@ -1332,6 +1366,8 @@ class MainWindow(QtWidgets.QMainWindow):
     def center_plot(self, voltage, current):
         if self.logyaxis.isChecked():
             current = [cu for cu in current if cu > 0]
+            if len(current) == 0:
+                current = [0]
         else:
             pass
 
@@ -1342,7 +1378,7 @@ class MainWindow(QtWidgets.QMainWindow):
             min_y = -0.1
             max_y = 0.1
         else:
-            min_x = min(voltage)
+            min_x = np.min(voltage)
             max_x = np.max(voltage)
             min_y = np.min(current)
             max_y = np.max(current)
@@ -1354,7 +1390,13 @@ class MainWindow(QtWidgets.QMainWindow):
 
         try:
             if min_x != max_x:
-                self.canvas.axes.set_ylim([min_y - ey, max_y + ey])
+                if self.logyaxis.isChecked():
+                    try:
+                        self.canvas.axes.set_ylim([min_y * 0.99, max_y + ey])
+                    except:
+                        self.canvas.axes.set_ylim([0, max_y + ey])
+                else:
+                    self.canvas.axes.set_ylim([min_y - ey, max_y + ey])
                 self.canvas.axes.set_xlim([min_x - ex, max_x + ex])
             else:
                 self.canvas.axes.set_ylim([min_y - room, max_y + room])
@@ -1370,7 +1412,6 @@ class MainWindow(QtWidgets.QMainWindow):
 
         else:
             self.canvas.axes.plot(self.mpp_time, self.mpp_power, 'xb-')
-            # TODO there an error here
 
         ## Get min and max values to center plot
         min_x = np.min(self.mpp_time)
