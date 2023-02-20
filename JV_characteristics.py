@@ -559,6 +559,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.Bpath.setEnabled(False)
 
     def create_folder(self, sample, retry=1):
+        # TODO instead, create new files, not folders
         self.folder = self.LEfolder.text()
         if self.folder[-1] != "/":
             self.folder = self.folder + "/"  ## Add "/" if non existent
@@ -873,14 +874,20 @@ class MainWindow(QtWidgets.QMainWindow):
                 # print("no")
                 self.SuSi_shutter_open()
 
+    def SuSi_status(self):
+        answer = self.susim_check()
+        print(answer)
+
     def SuSi_startup(self):
         if self.is_susi:
             self.susi.write(b'C1')  # Enable cooling
             QtTest.QTest.qWait(int(1 * 1000))
             self.susi.write(b'L1')  # Light On
-            QtTest.QTest.qWait(int(1 * 1000))
+            QtTest.QTest.qWait(int(2 * 1000))
             self.SuSi_startup_intensity()
             QtTest.QTest.qWait(int(1 * 1000))
+            self.statusBar().showMessage("SuSi startup done", 3000)
+
 
     def SuSi_shutdown(self):
         if self.is_susi:
@@ -914,17 +921,22 @@ class MainWindow(QtWidgets.QMainWindow):
         self.Bsusi_set = QToolButton()
         self.Lcurrcurr = QLabel("")
         self.Bcurrtest = QToolButton()
+        self.bstatus = QToolButton()
         self.bsave = QToolButton()
         self.bcancel = QToolButton()
 
         self.susi_intensity.setMaximumWidth(60)
         self.Bsusi_set.setMaximumWidth(40)
+        self.bstatus.setMaximumWidth(40)
         self.Bcurrtest.setMaximumWidth(40)
         self.bsave.setMaximumWidth(40)
         self.bcancel.setMaximumWidth(40)
 
+
+        self.susi_intensity.setText(str(self.susi_percentage))
         self.Bsusi_set.setText("Set")
         self.Bcurrtest.setText("Test")
+        self.bstatus.setText("status")
         self.bsave.setText("Save")
         self.bcancel.setText("Cancel")
 
@@ -938,12 +950,15 @@ class MainWindow(QtWidgets.QMainWindow):
         layout.addWidget(self.Bcurrtest, 2, 2)
         layout.addWidget(self.bsave, 3, 0)
         layout.addWidget(self.bcancel, 3, 2)
+        layout.addWidget(self.bstatus, 4, 0)
         # TODO  add other configuraiton values here, like sun intensity and current
 
         self.dlg.setLayout(layout)
 
+        self.bstatus.clicked.connect(self.SuSi_status)
         self.bcancel.clicked.connect(self.dialog_close)
         self.bsave.clicked.connect(self.dialog_save)
+        # TODO send intensity value to dialog_save from connect function
         self.Bsusi_set.clicked.connect(self.dialog_set_intensity)
         self.Bcurrtest.clicked.connect(self.dialog_test_current)
 
@@ -958,6 +973,7 @@ class MainWindow(QtWidgets.QMainWindow):
             df.to_csv(logpath, index = False)
 
         intensity = df["Lamp Power(%)"].iloc[-1]
+        self.susi_percentage = intensity
 
         return intensity
 
@@ -983,18 +999,24 @@ class MainWindow(QtWidgets.QMainWindow):
     def dialog_close(self):
         self.dlg.close()
 
-    def dialog_save(self,intensity):
+    def dialog_save(self):
+        intensity = self.susi_intensity.text()
         self.log_susi_save(intensity)
+        self.susi_intensity.setText(intensity)
+        self.popup_message("SuSi intensity saved in log file")
 
     def dialog_set_intensity(self):
-        intensity = int(self.susi_intensity.text())
+        try:
+            intensity = float(self.susi_intensity.text())
+        except:
+            intensity = 0
 
         if intensity > 105:
             int_val = 105
         elif intensity < 75:
             int_val = 75
         else:
-            int_val = intensity
+            int_val = round(intensity,1)
 
         self.susi_intensity.setText(str(int_val))
         self.set_intensity_susim(int_val)
@@ -1002,8 +1024,9 @@ class MainWindow(QtWidgets.QMainWindow):
         QtTest.QTest.qWait(int(3 * 1000))
 
     def set_intensity_susim(self,intensity):
-        self.susi_start_intensity = intensity
-        intensity = intensity * 10
+        print(intensity)
+        # self.susi_start_intensity = int(intensity)
+        intensity = int(intensity * 10)
         value = "{:04d}".format(intensity)
         message = "P=" + value
 
@@ -1185,7 +1208,6 @@ class MainWindow(QtWidgets.QMainWindow):
             self.keithley.enable_source()
             self.curr_volt_tracking()
             self.save_mpp()
-            self.popup_message("MPP measurement done")
 
         self.keithley.disable_source()
         self.SuSi_shutter_close()
