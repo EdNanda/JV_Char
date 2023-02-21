@@ -778,17 +778,18 @@ class MainWindow(QtWidgets.QMainWindow):
     #     self.mpp_measurement()
 
     def test_actual_current(self):
+        self.keithley_startup_setup()
         ref = float(self.sun_ref.text())
 
         # while self.refCurrent.isChecked():
 
         self.keithley.enable_source()
-
-        self.keithley.source_voltage = 0
+        self.keithley.source_voltage = 0.0
+        QtTest.QTest.qWait(int(1 * 1000))
         self.Rcurrent = self.keithley.current * 1000
         self.RsunP = abs(self.Rcurrent / ref * 100)
 
-        self.pow_dens.setText(self.RsunP)
+        # self.pow_dens.setText(self.RsunP)
 
         self.keithley.disable_source()
 
@@ -933,8 +934,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self.bcancel.setMaximumWidth(40)
 
         self.susi_intensity.setText(str(self.susi_percentage))
-        self.ref_area.setText("2")
-        self.sun_ref.setText("120")
+        self.ref_area.setText("1")
+        self.sun_ref.setText("130.3")
         self.Bsusi_set.setText("Set")
         self.Bcurrtest.setText("Test")
         self.bstatus.setText("Status")
