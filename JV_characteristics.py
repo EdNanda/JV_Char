@@ -6,7 +6,7 @@ import matplotlib
 from PyQt5 import QtWidgets, QtGui, QtTest
 from PyQt5.QtWidgets import QWidget, QLineEdit, QFormLayout, QHBoxLayout, QSpacerItem, QGridLayout
 from PyQt5.QtWidgets import QFrame, QPushButton, QCheckBox, QLabel, QToolButton, QTextEdit
-from PyQt5.QtWidgets import QSizePolicy, QMessageBox, QDialog, QDialogButtonBox
+from PyQt5.QtWidgets import QSizePolicy, QMessageBox, QDialog
 from PyQt5.QtCore import QThreadPool
 from PyQt5.QtGui import QFont
 from PyQt5.QtWidgets import QTableView
@@ -82,7 +82,7 @@ class TableModel(QAbstractTableModel):
             if orientation == Qt.Vertical:
                 return str(self._data.index[section])
 
-            ## This makes the plot happen
+            # This makes the plot happen
 
 
 class MplCanvas(FigureCanvasQTAgg):
@@ -106,7 +106,7 @@ class MainWindow(QtWidgets.QMainWindow):
     def __init__(self, *args, **kwargs):
         super(MainWindow, self).__init__(*args, **kwargs)
 
-        ## Initialize parameters
+        # Initialize parameters
 
         self.setWindowTitle("JV Characteristics")
         folder = os.path.abspath(os.getcwd()) + "\\"
@@ -116,15 +116,15 @@ class MainWindow(QtWidgets.QMainWindow):
         self.statusBar().showMessage("Program by Edgar Nandayapa - 2022", 10000)
 
         try:
-            ## Modify this in case multiple keithleys
-            rm = visa.ResourceManager()  ##Load piVisa
-            device = rm.list_resources()[0]  ## Get the first keithley on the list
+            # Modify this in case multiple keithley
+            rm = visa.ResourceManager()  # Load piVisa
+            device = rm.list_resources()[0]  # Get the first keithley on the list
             self.keithley = Keithley2450(device)
             self.keithley.wires = 4
         except:
             device = None
             self.keithley = None
-            self.statusBar().showMessage("####    Keithley not found    ####")
+            self.statusBar().showMessage("##    Keithley not found    ##")
 
         try:
             # susi = serial.Serial()  # open serial port
@@ -140,34 +140,34 @@ class MainWindow(QtWidgets.QMainWindow):
             self.is_susi = False
 
             if not self.keithley:
-                self.statusBar().showMessage("####    Keithley and SuSi not found    ####")
+                self.statusBar().showMessage("##    Keithley and susi not found    ##")
                 self.popup_message("  Keithley\n"
-                                   "  and SuSi\n"
+                                   "  and susi\n"
                                    "were not found")
             else:
-                self.statusBar().showMessage("####    SuSi not found    ####")
-                self.popup_message("    SuSi\n"
+                self.statusBar().showMessage("##    susi not found    ##")
+                self.popup_message("    susi\n"
                                    "was not found")
 
         self.threadpool = QThreadPool()
 
         self.create_widgets()
 
-        self.button_actions()  ##Set button actions
+        self.button_actions()  # Set button actions
 
     def create_widgets(self):
         widget = QWidget()
-        layH1 = QHBoxLayout()  ##Main (horizontal) Layout
+        layH1 = QHBoxLayout()  # Main (horizontal) Layout
 
-        ## Create the maptlotlib FigureCanvas for plotting
+        # Create the maptlotlib FigureCanvas for plotting
         self.canvas = MplCanvas(self, width=5, height=4, dpi=100)
-        self.canvas.setMinimumWidth(600)  ##Fix width so it doesn't change
+        self.canvas.setMinimumWidth(600)  # Fix width so it doesn't change
         self.canvas.setMinimumHeight(450)
         self.setCentralWidget(self.canvas)
         self._plot_ref = None
         self.is_meas_live = False
         self.is_first_plot = True
-        ## Add a toolbar to control plotting area
+        # Add a toolbar to control plotting area
         toolbar = NavigationToolbar(self.canvas, self)
 
         self.Ljvvars = QTableView()
@@ -184,26 +184,26 @@ class MainWindow(QtWidgets.QMainWindow):
         self.model = TableModel(jvstart)
         self.Ljvvars.setModel(self.model)
 
-        ## Add to (first) vertical layout
+        # Add to (first) vertical layout
         layV1 = QtWidgets.QVBoxLayout()
-        ## Add Widgets to the layout
+        # Add Widgets to the layout
         layV1.addWidget(toolbar)
         layV1.addWidget(self.canvas)
         layV1.addWidget(self.Ljvvars)
 
-        ## Add first vertical layout to the main horizontal one
+        # Add first vertical layout to the main horizontal one
         layH1.addLayout(layV1, 5)
 
-        ### Make second vertical layout for measurement settings
+        ## Make second vertical layout for measurement settings
         layV2 = QtWidgets.QVBoxLayout()
-        verticalSpacerV2 = QSpacerItem(20, 10, QSizePolicy.Minimum, QSizePolicy.Expanding)  ## To center the layout
+        verticalSpacerV2 = QSpacerItem(20, 10, QSizePolicy.Minimum, QSizePolicy.Expanding)  # To center the layout
 
-        ## Relevant fields for sample, user and folder names
+        # Relevant fields for sample, user and folder names
         self.LEsample = QLineEdit()
         self.LEuser = QLineEdit()
         self.LEfolder = QLineEdit()
 
-        ## Make a grid layout and add labels and fields to it
+        # Make a grid layout and add labels and fields to it
         LGsetup = QGridLayout()
         LGsetup.addWidget(QLabel("Sample:"), 0, 0)
         LGsetup.addWidget(self.LEsample, 0, 1)
@@ -218,12 +218,12 @@ class MainWindow(QtWidgets.QMainWindow):
         self.Bfolder.setToolTip("Choose a folder where to save the data")
         LGsetup.addWidget(self.Bfolder, 2, 2)
 
-        ## Set defaults
+        # Set defaults
         self.Bpath.setText("\U0001F4C6")
         self.Bfolder.setText("\U0001F4C1")
         self.LEfolder.setText("C:/Data/")
 
-        ## Second set of setup values
+        # Second set of setup values
         LTsetup = QGridLayout()
         self.volt_start = QLineEdit()
         self.volt_end = QLineEdit()
@@ -235,10 +235,10 @@ class MainWindow(QtWidgets.QMainWindow):
         self.sam_area = QLineEdit()
         self.pow_dens = QLineEdit()
         self.cell_num = QLineEdit()
-        self.sun_ref = QLineEdit()
+        # self.sun_ref = QLineEdit()
         self.curr_ref = QLabel("0\n0%")
 
-        ## Set maximum width of widgets
+        # Set maximum width of widgets
         sMW = 60
         self.volt_start.setMaximumWidth(sMW)
         self.volt_end.setMaximumWidth(sMW)
@@ -250,22 +250,22 @@ class MainWindow(QtWidgets.QMainWindow):
         self.sam_area.setMaximumWidth(sMW)
         self.pow_dens.setMaximumWidth(sMW)
         self.cell_num.setMaximumWidth(sMW)
-        self.sun_ref.setMaximumWidth(sMW)
+        # self.sun_ref.setMaximumWidth(sMW)
 
-        ## Set widget texts
+        # Set widget texts
         self.volt_start.setText("-0.2")
         self.volt_end.setText("0.65")
-        self.volt_step.setText("0.05")
+        self.volt_step.setText("0.01")
         self.ave_pts.setText("3")
         self.int_time.setText("0.1")
         self.set_time.setText("0.1")
         self.curr_lim.setText("300")
         self.sam_area.setText("2")
         self.pow_dens.setText("100")
-        self.sun_ref.setText("74")
+        # self.sun_ref.setText("74")
         # self.cell_num.setText("1")#module
 
-        ## Position labels and field in a grid
+        # Position labels and field in a grid
         LTsetup.addWidget(QLabel(" "), 0, 0)
         LTsetup.addWidget(QLabel("Start Voltage (V)"), 1, 0, Qt.AlignRight)
         LTsetup.addWidget(self.volt_start, 1, 1, Qt.AlignLeft)
@@ -285,12 +285,12 @@ class MainWindow(QtWidgets.QMainWindow):
         LTsetup.addWidget(self.sam_area, 4, 3, Qt.AlignLeft)
         LTsetup.addWidget(QLabel("Power Density (mW/cm²)"), 5, 0, Qt.AlignRight)
         LTsetup.addWidget(self.pow_dens, 5, 1, Qt.AlignLeft)
-        LTsetup.addWidget(QLabel("1-Sun Reference (mA)"), 5, 2, Qt.AlignRight)
-        LTsetup.addWidget(self.sun_ref, 5, 3, Qt.AlignLeft)
+        # LTsetup.addWidget(QLabel("1-Sun Reference (mA)"), 5, 2, Qt.AlignRight)
+        # LTsetup.addWidget(self.sun_ref, 5, 3, Qt.AlignLeft)
         # LTsetup.addWidget(QLabel("Ref. Current (mA)\nSun percentage"),6,2,Qt.AlignRight)
         # LTsetup.addWidget(self.curr_ref,6,3,Qt.AlignLeft)
 
-        ## Third set of setup values
+        # Third set of setup values
         sbb = 15
         self.for_bmL = QCheckBox()
         self.rev_bmL = QCheckBox()
@@ -305,12 +305,12 @@ class MainWindow(QtWidgets.QMainWindow):
         self.for_bmL.setChecked(True)
         self.rev_bmL.setChecked(True)
         self.four_wire.setChecked(False)
-        self.refCurrent = QToolButton(self)
-        self.refCurrent.setText("Current (Reference)")
-        self.refCurrent.setFixedSize(int(sMW * 2.3), 40)
-        self.refCurrent.setCheckable(True)
+        # self.refCurrent = QToolButton(self)
+        # self.refCurrent.setText("Current (Reference)")
+        # self.refCurrent.setFixedSize(int(sMW * 2.3), 40)
+        # self.refCurrent.setCheckable(True)
         self.susiShutter = QToolButton(self)
-        self.susiShutter.setText("SuSi Shutter")
+        self.susiShutter.setText("susi Shutter")
         self.susiShutter.setFixedSize(int(sMW * 2.3), 40)
         self.susiShutter.setCheckable(True)
         label_for = QLabel("\U0001F80A")
@@ -337,12 +337,12 @@ class MainWindow(QtWidgets.QMainWindow):
         Lsetup.addWidget(self.four_wire, 4, 1)
         Lsetup.addWidget(QLabel("log Y-axis"), 5, 0, Qt.AlignRight)
         Lsetup.addWidget(self.logyaxis, 5, 1)
-        Lsetup.addWidget(self.refCurrent, 2, 3, 2, 1, Qt.AlignRight)
+        # Lsetup.addWidget(self.refCurrent, 2, 3, 2, 1, Qt.AlignRight)
         Lsetup.addWidget(self.susiShutter, 4, 3, 2, 1, Qt.AlignRight)
 
         Lsetup.addWidget(QLabel(" "), 5, 0)
 
-        ## Four set of setup values
+        # Four set of setup values
         LGlabels = QGridLayout()
 
         self.BStart = QPushButton("START")
@@ -387,7 +387,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.mppStart.setStyleSheet("color : blue;")
         mppLabels.addWidget(self.mppStart, 3, 0, 1, 4)
 
-        ## Position all these sets into the second layout V2
+        # Position all these sets into the second layout V2
         layV2.addItem(verticalSpacerV2)
         layV2.addLayout(LGsetup)
         layV2.addLayout(LTsetup)
@@ -396,15 +396,15 @@ class MainWindow(QtWidgets.QMainWindow):
         layV2.addItem(verticalSpacerV2)
         layV2.addItem(mppLabels)
 
-        ## Add to main horizontal layout with a spacer (for good looks)
+        # Add to main horizontal layout with a spacer (for good looks)
         horizontalSpacerH1 = QSpacerItem(10, 70, QSizePolicy.Minimum, QSizePolicy.Minimum)
         layH1.addItem(horizontalSpacerH1)
         layH1.addLayout(layV2, 3)
 
-        ### Make third vertical layout for metadata 
+        ## Make third vertical layout for metadata 
         layV3 = QtWidgets.QVBoxLayout()
 
-        ## List of relevant values
+        # List of relevant values
         self.exp_labels = ["Material", "Additives", "Concentration", "Solvents", "Solvents Ratio", "Substrate"]
         self.exp_vars = []
         self.glv_labels = ["Temperature ('C)", "Water content (ppm)", "Oxygen content (ppm)"]
@@ -413,19 +413,18 @@ class MainWindow(QtWidgets.QMainWindow):
         self.setup_labs_jv = ["Sample", "User", "Folder", "Voltage_start (V)", "Voltage_end (V)", "Voltage_step (V)",
                               "Averaged Points", "Integration time(s)", "Setting time (s)", "Current limit (mA)",
                               "Cell area(cm²)",
-                              "Power Density (mW/cm²)", "Sun Reference (mA)"]
+                              "Power Density (mW/cm²)"]#, "Sun Reference (mA)"]
         self.setup_vals_jv = [self.LEsample, self.LEuser, self.LEfolder, self.volt_start,
                               self.volt_end, self.volt_step, self.ave_pts, self.int_time, self.set_time, self.curr_lim,
                               self.sam_area,
-                              self.pow_dens, self.sun_ref]
+                              self.pow_dens]#, self.sun_ref]
         self.setup_labs_mpp = ["Sample", "User", "Folder", "Total time (s)", "Integration time (ms)",
                                "Voltage_step (V)",
                                "Starting Voltage (V)", "Cell area(cm²)"]
         self.setup_vals_mpp = [self.LEsample, self.LEuser, self.LEfolder, self.mpp_ttime,
                                self.mpp_inttime, self.mpp_stepSize, self.mpp_voltage, self.sam_area]
 
-
-        ## Make a new layout and position relevant values
+        # Make a new layout and position relevant values
         LmDataExp = QFormLayout()
         LmDataExp.addRow(QLabel('EXPERIMENT VARIABLES'))
 
@@ -464,21 +463,21 @@ class MainWindow(QtWidgets.QMainWindow):
 
         LGmeta.addWidget(QLabel(""), 0, 0)
         LGmeta.addWidget(QLabel("Metadata:"), 0, 1)
-        LGmeta.addWidget(QLabel("SuSi Intensity:"), 1, 1, 1, 2)
-        LGmeta.addWidget(QLabel("SuSi Off:"), 2, 1)
+        LGmeta.addWidget(QLabel("susi Intensity:"), 1, 1, 1, 2)
+        LGmeta.addWidget(QLabel("susi Off:"), 2, 1)
         LGmeta.addWidget(self.BsaveM, 0, 2)
         LGmeta.addWidget(self.BloadM, 0, 3)
         LGmeta.addWidget(self.Bsusi_intensity, 1, 3)
         LGmeta.addWidget(self.Bsusi_off, 2, 3)
 
-        ## Position layouts inside of the third vertical layout V3
+        # Position layouts inside the third vertical layout V3
         layV3.addItem(verticalSpacerV2)
         layV3.addLayout(LmDataExp)
         layV3.addLayout(LmDataBox)
         layV3.addLayout(LGmeta)
         layV3.addItem(verticalSpacerV2)
 
-        ## Add to main horizontal layout with a spacer (for good looks)
+        # Add to main horizontal layout with a spacer (for good looks)
         horizontalSpacerH2 = QSpacerItem(30, 70, QSizePolicy.Minimum, QSizePolicy.Minimum)
         layH1.addItem(horizontalSpacerH2)
         layH1.addLayout(layV3, 2)
@@ -489,11 +488,11 @@ class MainWindow(QtWidgets.QMainWindow):
         self.setCentralWidget(widget)
         self.show()
         # print(self.keithley.voltage)
-        self.other_buttons = [self.for_bmL, self.rev_bmL, self.for_bmD, self.rev_bmD, self.four_wire, #self.logyaxis,
+        self.other_buttons = [self.for_bmL, self.rev_bmL, self.for_bmD, self.rev_bmD, self.four_wire,  # self.logyaxis,
                               self.BsaveM, self.BloadM, self.Bsusi_intensity]
 
         if self.is_susi:
-            self.SuSi_startup()
+            self.susi_startup()
 
     def button_actions(self):
 
@@ -503,9 +502,9 @@ class MainWindow(QtWidgets.QMainWindow):
         self.Bpath.clicked.connect(self.automatic_folder)
         self.BsaveM.clicked.connect(self.save_meta)
         self.BloadM.clicked.connect(self.load_meta)
-        self.refCurrent.clicked.connect(self.reference_set_values)
-        self.susiShutter.clicked.connect(self.SuSi_button)
-        self.Bsusi_intensity.clicked.connect(self.SuSi_intesity_fix)
+        # self.refCurrent.clicked.connect(self.reference_set_values)
+        self.susiShutter.clicked.connect(self.susi_button)
+        self.Bsusi_intensity.clicked.connect(self.susi_intensity_fix)
         #     self.LEinttime.returnPressed.connect(self.set_integration_time)
         #     self.SBinttime.valueChanged.connect(self.scrollbar_action)
         #     self.BDarkMeas.clicked.connect(self.dark_measurement)
@@ -525,21 +524,21 @@ class MainWindow(QtWidgets.QMainWindow):
         qmes = QMessageBox.about(self, "Something happened...", text)
 
     def select_folder(self):
-        old_folder = self.LEfolder.text()  ##Read entry line
+        old_folder = self.LEfolder.text()  # Read entry line
 
-        if not old_folder:  ## If empty, go to default
+        if not old_folder:  # If empty, go to default
             old_folder = "C:/Data/"
 
-        ## Select directory from selection
+        # Select directory from selection
         directory = QtWidgets.QFileDialog.getExistingDirectory(self, "Where do you want your data saved?", old_folder)
 
-        if not directory:  ## if cancelled, keep the old one
+        if not directory:  # if cancelled, keep the old one
             directory = old_folder
 
         self.LEfolder.setText(directory)
         self.folder = directory
 
-        ## Arrow function, to create folderpath with User and Date
+        # Arrow function, to create folderpath with User and Date
 
     def automatic_folder(self):
         user = self.LEuser.text()
@@ -562,7 +561,7 @@ class MainWindow(QtWidgets.QMainWindow):
         # TODO instead, create new files, not folders
         self.folder = self.LEfolder.text()
         if self.folder[-1] != "/":
-            self.folder = self.folder + "/"  ## Add "/" if non existent
+            self.folder = self.folder + "/"  # Add "/" if non existent
             self.LEfolder.setText(self.folder)
         else:
             pass
@@ -570,7 +569,7 @@ class MainWindow(QtWidgets.QMainWindow):
             self.sample = self.LEsample.text()
             self.folder = self.folder + self.sample + "/"
 
-            ## If sample name is duplicated, make a "-d#" folder
+            # If sample name is duplicated, make a "-d#" folder
             if os.path.exists(self.folder):
                 self.folder = self.folder.rsplit("/", 1)[0] + "-d" + str(retry) + "/"
                 if os.path.exists(self.folder):
@@ -578,7 +577,7 @@ class MainWindow(QtWidgets.QMainWindow):
                     self.create_folder(True, retry)
                 self.statusBar().showMessage("Sample is duplicated", 10000)
 
-        ##If folders don't exist, make them        
+        # If folders don't exist, make them
         if not os.path.exists(self.folder):
             os.makedirs(self.folder)
             self.statusBar().showMessage("Folder " + self.folder + " created", 5000)
@@ -615,7 +614,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def gather_all_metadata(self):
         self.sample = self.LEsample.text()
-        self.meta_dict = {}  ## All variables will be collected here
+        self.meta_dict = {}  # All variables will be collected here
 
         if not hasattr(self, "Rcurrent"):
             self.Rcurrent = 0
@@ -629,7 +628,7 @@ class MainWindow(QtWidgets.QMainWindow):
             all_metaD_labs = self.setup_labs_mpp + self.exp_labels + self.glv_labels
             all_metaD_vals = self.setup_vals_mpp + self.exp_vars + self.glv_vars
 
-        ## Add data to dictionary
+        # Add data to dictionary
         try:
             self.meta_dict["Date"] = strftime("%H:%M:%S - %d.%m.%Y", localtime(self.start_time))
         except:
@@ -650,7 +649,7 @@ class MainWindow(QtWidgets.QMainWindow):
         #     self.meta_dict[ad] = addit_data[cp]
 
         self.meta_dict[
-            "Comments"] = self.com_labels.toPlainText()  ## This field has a diffferent format than the others
+            "Comments"] = self.com_labels.toPlainText()  # This field has a diffferent format than the others
 
     def two_four_wires_measurement(self):
         if self.four_wire.isChecked():
@@ -662,7 +661,7 @@ class MainWindow(QtWidgets.QMainWindow):
     def dis_enable_widgets(self, status, process):
 
         wi_dis = self.setup_vals_jv + self.setup_vals_mpp + self.other_buttons + \
-                 [self.Bfolder, self.Bpath, self.refCurrent]
+                 [self.Bfolder, self.Bpath]#, self.refCurrent]
 
         self.dis_enable_starts(status, process)
 
@@ -710,7 +709,6 @@ class MainWindow(QtWidgets.QMainWindow):
         # names_f = [na.replace(" ","") for na in names] 
         names_t = [na.replace(" ", "\n") for na in names]
 
-
         values = self.jv_chars_results.T.copy()
         values.columns = names_t
 
@@ -725,10 +723,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self.Ljvvars.setModel(self.model)
 
     def vmpp_value_to_tracking(self):
-        vmpp = round(self.jv_chars_results[4],3)
+        vmpp = round(self.jv_chars_results[4], 3)
         self.mpp_voltage.setText(str(vmpp))
-
-
 
     def save_data(self):
         self.mpp_bool = False
@@ -781,7 +777,6 @@ class MainWindow(QtWidgets.QMainWindow):
     #
     #     self.mpp_measurement()
 
-
     def test_actual_current(self):
         ref = float(self.sun_ref.text())
 
@@ -793,26 +788,26 @@ class MainWindow(QtWidgets.QMainWindow):
         self.Rcurrent = self.keithley.current * 1000
         self.RsunP = abs(self.Rcurrent / ref * 100)
 
+        self.pow_dens.setText(self.RsunP)
+
         self.keithley.disable_source()
 
-    def reference_set_values(self):
-
-        self.test_actual_current()
-
-        self.refCurrent.setText("Ref. current  (Sun%)\n" + str(round(self.Rcurrent, 2)) +
-                                " mA  (" + str(round(self.RsunP, 2)) + ")")
-
-        self.pow_dens.setText(str(round(self.RsunP, 2)))
-
-
+    # def reference_set_values(self):
+    #
+    #     self.test_actual_current()
+    #
+    #     self.refCurrent.setText("Ref. current  (Sun%)\n" + str(round(self.Rcurrent, 2)) +
+    #                             " mA  (" + str(round(self.RsunP, 2)) + ")")
+    #
+    #     self.pow_dens.setText(str(round(self.RsunP, 2)))
 
     def jv_chars_calculation(self, volt, curr):
 
-        ## find Isc (find voltage value closest to 0 Volts)
+        # find Isc (find voltage value closest to 0 Volts)
         volt = np.array(volt)
         curr = np.array(curr)
 
-        ## if reverse measurement, flip it around
+        # if reverse measurement, flip it around
         if volt[0] > volt[-1]:
             volt = np.flip(volt)
             curr = np.flip(curr)
@@ -822,18 +817,18 @@ class MainWindow(QtWidgets.QMainWindow):
 
         if volt[v0] <= 0.0001:  # If voltage is equal to zero
             isc = curr[v0]
-        else:  ## Otherwise calculate from slope
+        else:  # Otherwise calculate from slope
             b_i = -curr[v0] - m_i * volt[v0]
             isc = -b_i
 
-        ## For Voc, find closest current values to 0
+        # For Voc, find closest current values to 0
         i1 = np.where(curr < 0, curr, -np.inf).argmax()
         i2 = np.where(curr > 0, curr, np.inf).argmin()
 
         c1 = curr[i1]
         c2 = curr[i2]
 
-        ## Get Voc by finding x-intercept (y=mx+b)
+        # Get Voc by finding x-intercept (y=mx+b)
         v1 = volt[i1]
         v2 = volt[i2]
         m_v = (c2 - c1) / (v2 - v1)
@@ -844,17 +839,17 @@ class MainWindow(QtWidgets.QMainWindow):
         r_par = abs(1 / m_i)
         r_ser = abs(1 / m_v)
 
-        ## Find mpp values
+        # Find mpp values
         mpp = np.argmax(-volt * curr)
 
         mpp_v = volt[mpp]
         mpp_c = curr[mpp]
         mpp_p = mpp_v * mpp_c
 
-        ## Calculate FF
+        # Calculate FF
         ff = mpp_v * mpp_c / (voc * isc) * 100
 
-        ## Calculate PCE (this is wrong, it needs correct P_in)
+        # Calculate PCE (this is wrong, it needs correct P_in)
         # pin = 75#mW/cm²
         pin = float(self.pow_dens.text())  # mW/cm²
         pce = abs(voc * isc * ff) / pin
@@ -863,61 +858,64 @@ class MainWindow(QtWidgets.QMainWindow):
 
         return jv_char
 
-    def SuSi_button(self):
+    def susi_button(self):
         if self.is_susi:
             answer = self.susim_check()
             # print(answer)
             if b"SHUTTER=0" in answer:
                 # print("yes")
-                self.SuSi_shutter_close()
+                self.susi_shutter_close()
             else:
                 # print("no")
-                self.SuSi_shutter_open()
+                self.susi_shutter_open()
 
-    def SuSi_status(self):
+    def susi_status(self):
         answer = self.susim_check()
         print(answer)
 
-    def SuSi_startup(self):
+    def susi_startup(self):
+        # TODO if is_susi, add settings to save metadata
         if self.is_susi:
             self.susi.write(b'C1')  # Enable cooling
             QtTest.QTest.qWait(int(1 * 1000))
             self.susi.write(b'L1')  # Light On
             QtTest.QTest.qWait(int(2 * 1000))
-            self.SuSi_startup_intensity()
+            self.susi_startup_intensity()
             QtTest.QTest.qWait(int(1 * 1000))
-            self.statusBar().showMessage("SuSi startup done", 3000)
+            self.statusBar().showMessage("susi startup done", 3000)
 
-
-    def SuSi_shutdown(self):
+    def susi_shutdown(self):
+        # TODO add confirmation popup
         if self.is_susi:
-            self.SuSi_shutter_close()
+            self.susi_shutter_close()
             QtTest.QTest.qWait(int(1 * 1000))
             self.susi.write(b'L0')  # Light On
             QtTest.QTest.qWait(int(1 * 1000))
 
-
-    def SuSi_startup_intensity(self,intensity=90.5):
+    def susi_startup_intensity(self, intensity=90.5):
         if self.is_susi:
             intensity = self.log_susi_open()
             self.set_intensity_susim(intensity)
 
-    def SuSi_intesity_fix(self):
+    def susi_intensity_fix(self):
         if self.is_susi:
-            self.SuSi_dialog()
+            self.susi_dialog()
             # TODO if no susi, then no possibility to modify this
             # self.dlg.setWindowModality(Qt.ApplicationModal)
             self.dlg.exec_()
 
-    def SuSi_dialog(self):
-        self.SuSi_shutter_open()
+    def susi_dialog(self):
+        self.susi_shutter_open()
         self.dlg = QDialog()
-        self.dlg.setWindowTitle("SuSi Intensity Set-up")
+        self.dlg.setWindowTitle("susi Intensity Set-up")
 
         # Set layout
         wid = QWidget()
         layout = QGridLayout()
         self.susi_intensity = QLineEdit()
+        self.ref_area = QLineEdit()
+        # TODO sun_ref is reapeated
+        self.sun_ref = QLineEdit()
         self.Bsusi_set = QToolButton()
         self.Lcurrcurr = QLabel("")
         self.Bcurrtest = QToolButton()
@@ -926,21 +924,24 @@ class MainWindow(QtWidgets.QMainWindow):
         self.bcancel = QToolButton()
 
         self.susi_intensity.setMaximumWidth(60)
+        self.ref_area.setMaximumWidth(60)
+        self.sun_ref.setMaximumWidth(60)
         self.Bsusi_set.setMaximumWidth(40)
         self.bstatus.setMaximumWidth(40)
         self.Bcurrtest.setMaximumWidth(40)
         self.bsave.setMaximumWidth(40)
         self.bcancel.setMaximumWidth(40)
 
-
         self.susi_intensity.setText(str(self.susi_percentage))
+        self.ref_area.setText("2")
+        self.sun_ref.setText("120")
         self.Bsusi_set.setText("Set")
         self.Bcurrtest.setText("Test")
-        self.bstatus.setText("status")
+        self.bstatus.setText("Status")
         self.bsave.setText("Save")
         self.bcancel.setText("Cancel")
 
-        ## Active widgets
+        # Active widgets
         layout.addWidget(QLabel("Set Intensity (%):"), 0, 0)
         layout.addWidget(self.susi_intensity, 0, 1)
         layout.addWidget(self.Bsusi_set, 0, 2)
@@ -948,14 +949,18 @@ class MainWindow(QtWidgets.QMainWindow):
         layout.addWidget(QLabel("Measure Ref:"), 2, 0)
         layout.addWidget(self.Lcurrcurr, 2, 1)
         layout.addWidget(self.Bcurrtest, 2, 2)
-        layout.addWidget(self.bsave, 3, 0)
-        layout.addWidget(self.bcancel, 3, 2)
-        layout.addWidget(self.bstatus, 4, 0)
+        layout.addWidget(QLabel("Ref. cell area (cm²)"), 3, 1)
+        layout.addWidget(self.ref_area, 3, 2)
+        layout.addWidget(QLabel("Ref. current (mA)"), 4, 1)
+        layout.addWidget(self.sun_ref, 4, 2)
+        layout.addWidget(self.bsave, 5, 0)
+        layout.addWidget(self.bcancel, 5, 2)
+        layout.addWidget(self.bstatus, 6, 0)
         # TODO  add other configuraiton values here, like sun intensity and current
 
         self.dlg.setLayout(layout)
 
-        self.bstatus.clicked.connect(self.SuSi_status)
+        self.bstatus.clicked.connect(self.susi_status)
         self.bcancel.clicked.connect(self.dialog_close)
         self.bsave.clicked.connect(self.dialog_save)
         # TODO send intensity value to dialog_save from connect function
@@ -966,18 +971,18 @@ class MainWindow(QtWidgets.QMainWindow):
         logpath = "C:\\Data\\susi_log.txt"
 
         try:
-            df = pd.read_csv(logpath,index_col=None)
+            df = pd.read_csv(logpath, index_col=None)
         except:
             df = pd.DataFrame(columns=["Date", "Lamp Power(%)"])
             df = self.log_susi_newinput(90.5, df)
-            df.to_csv(logpath, index = False)
+            df.to_csv(logpath, index=False)
 
         intensity = df["Lamp Power(%)"].iloc[-1]
         self.susi_percentage = intensity
 
         return intensity
 
-    def log_susi_save(self,intensity):
+    def log_susi_save(self, intensity):
         logpath = "C:\\Data\\susi_log.txt"
 
         df = pd.read_csv(logpath, index_col=None)
@@ -986,8 +991,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
         return intensity
 
-
-    def log_susi_newinput(self, power,dframe):
+    def log_susi_newinput(self, power, dframe):
         now = localtime()
         date = strftime("%Y-%m-%d %H:%M:%S", now)
 
@@ -1003,7 +1007,7 @@ class MainWindow(QtWidgets.QMainWindow):
         intensity = self.susi_intensity.text()
         self.log_susi_save(intensity)
         self.susi_intensity.setText(intensity)
-        self.popup_message("SuSi intensity saved in log file")
+        self.popup_message("susi intensity saved in log file")
 
     def dialog_set_intensity(self):
         try:
@@ -1016,14 +1020,14 @@ class MainWindow(QtWidgets.QMainWindow):
         elif intensity < 75:
             int_val = 75
         else:
-            int_val = round(intensity,1)
+            int_val = round(intensity, 1)
 
         self.susi_intensity.setText(str(int_val))
         self.set_intensity_susim(int_val)
 
         QtTest.QTest.qWait(int(3 * 1000))
 
-    def set_intensity_susim(self,intensity):
+    def set_intensity_susim(self, intensity):
         print(intensity)
         # self.susi_start_intensity = int(intensity)
         intensity = int(intensity * 10)
@@ -1032,11 +1036,10 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.susi.write(message.encode('utf-8'))  # Set light intensity
 
-
     def dialog_test_current(self):
         self.test_actual_current()
 
-        self.Lcurrcurr.setText(str(round(self.Rcurrent,2))+" mA")
+        self.Lcurrcurr.setText(str(round(self.Rcurrent, 2)) + " mA")
 
     def susim_check(self):
         if self.is_susi:
@@ -1045,16 +1048,16 @@ class MainWindow(QtWidgets.QMainWindow):
 
             return susi_ans
 
-    def SuSi_shutter_open(self):
+    def susi_shutter_open(self):
         if self.is_susi:
             self.susi.write(b'S0')  # Shutter Open
-            self.susiShutter.setText("SuSi Shutter (Opened)")
+            self.susiShutter.setText("susi Shutter (Opened)")
             QtTest.QTest.qWait(int(3 * 1000))
 
-    def SuSi_shutter_close(self):
+    def susi_shutter_close(self):
         if self.is_susi:
             self.susi.write(b'S1')  # Shutter Closed
-            self.susiShutter.setText("SuSi Shutter (Closed)")
+            self.susiShutter.setText("susi Shutter (Closed)")
             QtTest.QTest.qWait(int(3 * 1000))
 
     def namestr(self, obj, namespace):
@@ -1084,18 +1087,18 @@ class MainWindow(QtWidgets.QMainWindow):
         self.jv_chars_results = pd.DataFrame()
         self.curr_volt_results = pd.DataFrame()
 
-        ##TODO with multiplexing, there will be another loop here that goes through the cells
+        # TODO with multiplexing, there will be another loop here that goes through the cells
         for n, cbb in enumerate(check_box_buttons):
             if cbb.isChecked():
                 self.is_first_plot = True
                 if n == 0 or n == 1:  # if it is a dark measurement
-                    self.SuSi_shutter_close()
+                    self.susi_shutter_close()
                     ilum = "Dark"
                 else:
-                    self.SuSi_shutter_open()
+                    self.susi_shutter_open()
                     ilum = "Light"
 
-                if n == 0 or n == 2:  ## if it is forward
+                if n == 0 or n == 2:  # if it is forward
                     direc = "Forward"
                     all_vars = forwa_vars + fixed_vars + [ilum + direc]
                 else:
@@ -1111,7 +1114,6 @@ class MainWindow(QtWidgets.QMainWindow):
                 self.jv_chars_results[direc + "_" + ilum] = chars
                 self.curr_volt_results["Voltage (V)_" + direc + "_" + ilum] = volt
                 self.curr_volt_results["Current Density(mA/cm²)_" + direc + "_" + ilum] = curr
-
 
                 # print(self.curr_volt_results)
 
@@ -1176,7 +1178,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def jv_measurement(self):
         self.keithley_startup_setup()
-        ## Reset values
+        # Reset values
         if not self.is_meas_live:
             self.create_folder(True)
             self.dis_enable_widgets(True, "jv")
@@ -1190,18 +1192,16 @@ class MainWindow(QtWidgets.QMainWindow):
                 self.save_data()
             except:
                 pass
-            self.popup_message("JV measurement done")
 
-        self.SuSi_shutter_close()
+        self.susi_shutter_close()
         self.keithley.disable_source()
         self.dis_enable_widgets(False, "jv")
-
-
+        self.popup_message("JV measurement done")
 
     def mpp_measurement(self):
         self.keithley_startup_setup()
         if not self.is_meas_live:
-            self.SuSi_shutter_open()
+            self.susi_shutter_open()
             self.reset_plot_mpp()
             self.create_folder(True)
             self.dis_enable_widgets(True, "mpp")
@@ -1210,9 +1210,8 @@ class MainWindow(QtWidgets.QMainWindow):
             self.save_mpp()
 
         self.keithley.disable_source()
-        self.SuSi_shutter_close()
+        self.susi_shutter_close()
         self.dis_enable_widgets(False, "mpp")
-
 
     def curr_volt_tracking(self):
         area = float(self.sam_area.text())
@@ -1241,11 +1240,11 @@ class MainWindow(QtWidgets.QMainWindow):
             for v in voltage_test:
                 if self.is_meas_live:
                     self.keithley.source_voltage = v
-                    ## Wait for stabilized measurement
+                    # Wait for stabilized measurement
                     QtTest.QTest.qWait(int(mpp_int_time))
-                    ## Measure current & voltage
+                    # Measure current & voltage
                     m_current = self.keithley.current * 1000 / area
-                    m_voltage = v#self.keithley.voltage
+                    m_voltage = v  # self.keithley.voltage
 
                     mpp_test_current.append(m_current)
                     mpp_test_voltage.append(m_voltage)
@@ -1285,7 +1284,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.display_live_voltage(0, False)
 
     def collect_all_values_iv(self, voltage=[], current=[]):
-        ## Gather all measurements till now
+        # Gather all measurements till now
         volt = []
         curr = []
         try:
@@ -1344,7 +1343,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self._plot_ref = None
 
     def plot_jv(self, voltage, current, mode):
-        ## Make plot
+        # Make plot
         # if self._plot_ref is None:
         if self.is_first_plot:
             if "Light" in mode:
@@ -1362,7 +1361,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
                 else:
                     self._plot_ref = self.canvas.axes.plot(voltage, current, linestyle='--',
-                                                           marker='.', color='grey',label="Dark Back")
+                                                           marker='.', color='grey', label="Dark Back")
                     self.is_first_plot = False
 
         else:
@@ -1382,7 +1381,7 @@ class MainWindow(QtWidgets.QMainWindow):
         volt, curr = self.collect_all_values_iv(voltage, current)
         self.center_plot(volt, curr)
 
-        ## Draw plot
+        # Draw plot
         self.canvas.draw_idle()
 
     def center_plot(self, voltage, current):
@@ -1393,7 +1392,7 @@ class MainWindow(QtWidgets.QMainWindow):
         else:
             pass
 
-        ## Get min and max values to center plot
+        # Get min and max values to center plot
         if not voltage:
             min_x = -0.1
             max_x = 0.1
@@ -1428,14 +1427,14 @@ class MainWindow(QtWidgets.QMainWindow):
             self.canvas.axes.set_xlim([-0.1, 0.1])
 
     def plot_mpp(self):
-        ## Make plot
+        # Make plot
         if self._plot_ref is None:
             self._plot_ref = self.canvas.axes.plot(self.mpp_time, self.mpp_power, 'xb-', label="Power")
 
         else:
             self.canvas.axes.plot(self.mpp_time, self.mpp_power, 'xb-')
 
-        ## Get min and max values to center plot
+        # Get min and max values to center plot
         min_x = np.min(self.mpp_time)
         max_x = np.max(self.mpp_time)
         min_y = np.min(self.mpp_power)
@@ -1452,7 +1451,7 @@ class MainWindow(QtWidgets.QMainWindow):
             self.canvas.axes.set_ylim([min_y - room, max_y + room])
             self.canvas.axes.set_xlim([min_x - room, max_x + room])
 
-        ## Draw plot
+        # Draw plot
         self.canvas.draw_idle()
 
     def finished_plotting(self):
