@@ -708,22 +708,20 @@ class MainWindow(QtWidgets.QMainWindow):
                  "R_series (\U00002126cm²)", "R_shunt (\U00002126cm²)"]
         # names_f = [na.replace(" ","") for na in names] 
         names_t = [na.replace(" ", "\n") for na in names]
-
-        values = self.jv_chars_results.T.copy()
+        values = self.jv_chars_results.copy()
+        print(values)
         values.columns = names_t
-
         for v in values.index:
             if "Dark" in v:
                 values = values.drop(index=v, axis=1)
                 self.jv_chars_results = self.jv_chars_results.drop(columns=v, axis=0)
             else:
                 values.rename(index={v: v[:-6]}, inplace=True)
-
         self.model = TableModel(values)
         self.Ljvvars.setModel(self.model)
 
     def vmpp_value_to_tracking(self):
-        vmpp = round(self.jv_chars_results[4], 3)
+        vmpp = round(self.jv_chars_results["V_mpp(V)"].iat[-1], 3)
         self.mpp_voltage.setText(str(vmpp))
 
     def save_data(self):
@@ -781,15 +779,11 @@ class MainWindow(QtWidgets.QMainWindow):
         self.keithley_startup_setup()
         ref = float(self.sun_ref.text())
 
-        # while self.refCurrent.isChecked():
-
         self.keithley.enable_source()
         self.keithley.source_voltage = 0.0
         QtTest.QTest.qWait(int(1 * 1000))
         self.Rcurrent = self.keithley.current * 1000
         self.RsunP = abs(self.Rcurrent / ref * 100)
-
-        # self.pow_dens.setText(self.RsunP)
 
         self.keithley.disable_source()
 
@@ -1187,9 +1181,9 @@ class MainWindow(QtWidgets.QMainWindow):
             self.keithley.enable_source()
             self.fix_data_and_send_to_measure()
             try:
+                self.fix_jv_chars_for_save()
                 self.vmpp_value_to_tracking()
                 self.jv_char_qtabledisplay()
-                self.fix_jv_chars_for_save()
                 self.save_data()
             except:
                 pass
