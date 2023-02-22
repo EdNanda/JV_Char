@@ -310,7 +310,7 @@ class MainWindow(QtWidgets.QMainWindow):
         # self.refCurrent.setFixedSize(int(sMW * 2.3), 40)
         # self.refCurrent.setCheckable(True)
         self.susiShutter = QToolButton(self)
-        self.susiShutter.setText("susi Shutter")
+        self.susiShutter.setText("SuSi Shutter")
         self.susiShutter.setFixedSize(int(sMW * 2.3), 40)
         self.susiShutter.setCheckable(True)
         label_for = QLabel("\U0001F80A")
@@ -909,7 +909,6 @@ class MainWindow(QtWidgets.QMainWindow):
         layout = QGridLayout()
         self.susi_intensity = QLineEdit()
         self.ref_area = QLineEdit()
-        # TODO sun_ref is reapeated
         self.sun_ref = QLineEdit()
         self.Bsusi_set = QToolButton()
         self.Lcurrcurr = QLabel("")
@@ -941,24 +940,22 @@ class MainWindow(QtWidgets.QMainWindow):
         layout.addWidget(self.susi_intensity, 0, 1)
         layout.addWidget(self.Bsusi_set, 0, 2)
         layout.addWidget(QLabel("Range: 75-105%"), 1, 0)
-        layout.addWidget(QLabel("Measure Ref:"), 2, 0)
-        layout.addWidget(self.Lcurrcurr, 2, 1)
-        layout.addWidget(self.Bcurrtest, 2, 2)
-        layout.addWidget(QLabel("Ref. cell area (cm²)"), 3, 1)
-        layout.addWidget(self.ref_area, 3, 2)
-        layout.addWidget(QLabel("Ref. current (mA)"), 4, 1)
-        layout.addWidget(self.sun_ref, 4, 2)
+        layout.addWidget(QLabel("Ref. cell area (cm²)"), 2, 0)
+        layout.addWidget(self.ref_area, 2, 1)
+        layout.addWidget(QLabel("Ref. current (mA)"), 3, 0)
+        layout.addWidget(self.sun_ref, 3, 1)
+        layout.addWidget(QLabel("Measure Ref:"), 4, 0)
+        layout.addWidget(self.Lcurrcurr, 4, 1)
+        layout.addWidget(self.Bcurrtest, 4, 2)
         layout.addWidget(self.bsave, 5, 0)
         layout.addWidget(self.bcancel, 5, 2)
         layout.addWidget(self.bstatus, 6, 0)
-        # TODO  add other configuraiton values here, like sun intensity and current
 
         self.dlg.setLayout(layout)
 
         self.bstatus.clicked.connect(self.susi_status)
         self.bcancel.clicked.connect(self.dialog_close)
         self.bsave.clicked.connect(self.dialog_save)
-        # TODO send intensity value to dialog_save from connect function
         self.Bsusi_set.clicked.connect(self.dialog_set_intensity)
         self.Bcurrtest.clicked.connect(self.dialog_test_current)
 
@@ -1002,7 +999,7 @@ class MainWindow(QtWidgets.QMainWindow):
         intensity = self.susi_intensity.text()
         self.log_susi_save(intensity)
         self.susi_intensity.setText(intensity)
-        self.popup_message("susi intensity saved in log file")
+        self.popup_message("SuSi intensity saved in log file")
 
     def dialog_set_intensity(self):
         try:
@@ -1036,6 +1033,12 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.Lcurrcurr.setText(str(round(self.Rcurrent, 2)) + " mA")
 
+        ref_current = float(self.sun_ref.text())
+
+        power = round(float(self.Rcurrent) / ref_current * 100, 2)
+
+        self.pow_dens.setText(str(power))
+
     def susim_check(self):
         if self.is_susi:
             self.susi.write(b'FS')  # Read data
@@ -1046,13 +1049,13 @@ class MainWindow(QtWidgets.QMainWindow):
     def susi_shutter_open(self):
         if self.is_susi:
             self.susi.write(b'S0')  # Shutter Open
-            self.susiShutter.setText("susi Shutter (Opened)")
+            self.susiShutter.setText("SuSi Shutter (Opened)")
             QtTest.QTest.qWait(int(3 * 1000))
 
     def susi_shutter_close(self):
         if self.is_susi:
             self.susi.write(b'S1')  # Shutter Closed
-            self.susiShutter.setText("susi Shutter (Closed)")
+            self.susiShutter.setText("SuSi Shutter (Closed)")
             QtTest.QTest.qWait(int(3 * 1000))
 
     def namestr(self, obj, namespace):
