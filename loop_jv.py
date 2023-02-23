@@ -76,7 +76,7 @@ def fix_data_and_send_to_measure():
 
         jv_chars_results[direc + "_" + str(n)] = chars
         curr_volt_results["Voltage (V)_" + direc + "_" + str(n)] = volt
-        curr_volt_results["Current Density(mA/cm²)_" + direc + "_" + str(n)] = curr
+        curr_volt_results["Current(mA)_" + direc + "_" + str(n)] = curr
         # print(jv_chars_results)
         # print(curr_volt_results)
 
@@ -167,8 +167,8 @@ def jv_chars_calculation(volt, curr):
     ff = mpp_v * mpp_c / (voc * isc) * 100
 
     # Calculate PCE (this is wrong, it needs correct P_in)
-    # pin = 75#mW/cm²
-    # pin = float(self.pow_dens.text())  # mW/cm²
+    # pin = 75#mW
+    # pin = float(self.pow_dens.text())  # mW
     pce = abs(voc * isc * ff) / 100
 
     jv_char = [voc, isc, ff, pce, mpp_v, mpp_c, mpp_p, r_ser, r_par]
@@ -177,8 +177,8 @@ def jv_chars_calculation(volt, curr):
 
 
 def fix_jv_chars_for_save(chars):
-    names = ["Voc (V)", "Jsc (mA/cm²)", "FF (%)", "PCE (%)", "V_mpp (V)", "J_mpp (mA/cm²)", "P_mpp (mW/cm²)",
-             "R_series (\U00002126cm²)", "R_shunt (\U00002126cm²)"]
+    names = ["Voc (V)", "Jsc (mA)", "FF (%)", "PCE (%)", "V_mpp (V)", "J_mpp (mA)", "P_mpp (mW)",
+             "R_series (\U00002126)", "R_shunt (\U00002126)"]
     names_f = [na.replace(" ", "") for na in names]
 
     jv_chars_results = chars.T.copy()
