@@ -1,5 +1,5 @@
 import sys
-import matplotlib
+import matplotlib.pyplot as plt
 from PyQt5 import QtWidgets, QtGui, QtTest
 from pymeasure.instruments.keithley import Keithley2450
 import pyvisa as visa
@@ -50,7 +50,7 @@ def fix_data_and_send_to_measure():
     ave_pts = 1
     set_time = 0.1
 
-    process = ["b", "b", "f", "f"]
+    process = ["b", "f", "f"]
 
     forwa_vars = [volt_begin, volt_end + volt_step * 0.95, volt_step]
     rever_vars = [volt_end, volt_begin - volt_step * 0.95, -volt_step]
@@ -61,13 +61,14 @@ def fix_data_and_send_to_measure():
 
     # TODO with multiplexing, there will be another loop here that goes through the cells
     for n, cbb in enumerate(process):
+        print("Curve #",str(n))
 
         if "f" in cbb:  # if it is forward
             direc = "Forward"
-            all_vars = forwa_vars + fixed_vars + [direc]
+            all_vars = forwa_vars + fixed_vars + [direc, n]
         else:
             direc = "Reverse"
-            all_vars = rever_vars + fixed_vars + [direc]
+            all_vars = rever_vars + fixed_vars + [direc, n]
 
         # print(all_vars)
         volt, curr = curr_volt_measurement(all_vars)
@@ -76,14 +77,14 @@ def fix_data_and_send_to_measure():
         jv_chars_results[direc + "_" + str(n)] = chars
         curr_volt_results["Voltage (V)_" + direc + "_" + str(n)] = volt
         curr_volt_results["Current Density(mA/cm²)_" + direc + "_" + str(n)] = curr
-        print(jv_chars_results)
-        print(curr_volt_results)
+        # print(jv_chars_results)
+        # print(curr_volt_results)
 
     return jv_chars_results, curr_volt_results
 
 
 def curr_volt_measurement(variables):
-    volt_0, volt_f, step, time_s, average_points, mode = variables
+    volt_0, volt_f, step, time_s, average_points, mode, n = variables
 
     current = []
     voltage = []
@@ -104,6 +105,10 @@ def curr_volt_measurement(variables):
         # self.display_live_voltage(i)
         current.append(ave_curr)
         voltage.append(np.mean(meas_voltages))
+
+    plt.plot(voltage, current, label="Curve "+str(n))
+    plt.legend()
+    plt.show()
 
         # self.plot_jv(voltage, current, mode)
 
@@ -188,7 +193,7 @@ def save_data(char, data, filename):
     empty = pd.DataFrame(data={"": ["--"]})
 
     char.T.to_csv(filename, index=True, header=True)
-    empty.to_csv(filename, mode="a", index=False, header=False, lineterminator='\n')
+    empty.to_csv(filename, mode="a", index=False, header=False)
     data.to_csv(filename, mode="a", index=False, header=True)
 
 
