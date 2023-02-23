@@ -1003,7 +1003,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def dialog_set_intensity(self):
         try:
-            intensity = float(self.susi_intensity.text())
+            intensity = float(self.susi_intensity.text()) #Check if float
         except:
             intensity = 0
 
@@ -1020,7 +1020,7 @@ class MainWindow(QtWidgets.QMainWindow):
         QtTest.QTest.qWait(int(3 * 1000))
 
     def set_intensity_susim(self, intensity):
-        print(intensity)
+        # print(intensity)
         # self.susi_start_intensity = int(intensity)
         intensity = int(intensity * 10)
         value = "{:04d}".format(intensity)
@@ -1035,7 +1035,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
         ref_current = float(self.sun_ref.text())
 
-        power = round(float(self.Rcurrent) / ref_current * 100, 2)
+        power = abs(round(float(self.Rcurrent) / ref_current * 100, 2))
 
         self.pow_dens.setText(str(power))
 
@@ -1067,7 +1067,7 @@ class MainWindow(QtWidgets.QMainWindow):
         area = float(self.sam_area.text())
         volt_begin = float(self.volt_start.text())
         volt_end = float(self.volt_end.text())
-        time_step = float(self.volt_step.text())
+        volt_step = float(self.volt_step.text())
         ap = int(self.ave_pts.text())
         time = float(self.set_time.text())
 
@@ -1076,8 +1076,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self.res_bkw_curr = []
         self.res_bkw_volt = []
 
-        forwa_vars = [volt_begin, volt_end + time_step * 0.95, time_step]
-        rever_vars = [volt_end, volt_begin - time_step * 0.95, -time_step]
+        forwa_vars = [volt_begin, volt_end + volt_step * 0.95, volt_step]
+        rever_vars = [volt_end, volt_begin - volt_step * 0.95, -volt_step]
         fixed_vars = [time, ap, area]
 
         check_box_buttons = [self.for_bmD, self.rev_bmD, self.for_bmL, self.rev_bmL]
@@ -1140,7 +1140,7 @@ class MainWindow(QtWidgets.QMainWindow):
             self.label_currcurr.setText("")
 
     def curr_volt_measurement(self, variables):
-        volt_0, volt_f, step, time, average_points, area, mode = variables
+        volt_0, volt_f, step, time_s, average_points, area, mode = variables
 
         current = []
         voltage = []
@@ -1152,7 +1152,7 @@ class MainWindow(QtWidgets.QMainWindow):
             for t in range(average_points):
                 if self.is_meas_live:
                     self.keithley.source_voltage = i
-                    QtTest.QTest.qWait(int(time * 1000))
+                    QtTest.QTest.qWait(int(time_s * 1000))
                     meas_voltages.append(i)
                     meas_currents.append(self.keithley.current * 1000 / area)
                 else:
@@ -1184,6 +1184,7 @@ class MainWindow(QtWidgets.QMainWindow):
             self.keithley.enable_source()
             self.fix_data_and_send_to_measure()
             try:
+                # TODO fix so that jv char appear after each curve
                 self.fix_jv_chars_for_save()
                 self.vmpp_value_to_tracking()
                 self.jv_char_qtabledisplay()
