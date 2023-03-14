@@ -22,7 +22,7 @@ import pandas as pd
 import numpy as np
 import os
 import serial
-from time import time, strftime, localtime
+from time import time, strftime, localtime, gmtime
 from datetime import datetime
 from sklearn.linear_model import LinearRegression
 
@@ -748,7 +748,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.mpp_bool = True
         self.gather_all_metadata()
         metadata = pd.DataFrame.from_dict(self.meta_dict, orient='index')
-        mpp_data = pd.DataFrame({"Time (min)": self.mpp_time, "Voltage (V)": self.res_mpp_voltage,
+        mpp_data = pd.DataFrame({"Time (min)": self.mpp_time, "Hour":self.mpp_zeit, "Voltage (V)": self.res_mpp_voltage,
                                  "Current (mA/cm²)": self.mpp_current, "Power (mW/cm²)": self.mpp_power})
 
         filename = self.folder + self.sample + "_MPP_measurement.csv"
@@ -1231,6 +1231,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.res_mpp_voltage = []
         self.mpp_power = []
         self.mpp_time = []
+        self.mpp_zeit = []
 
         max_voltage = mpp_voltage
         time_c = time()
@@ -1276,6 +1277,8 @@ class MainWindow(QtWidgets.QMainWindow):
                 elapsed_t = (time() - time_c - tc)
 
             self.mpp_time.append(elapsed_t / 60)
+            uhrzeit = strftime("%d.%m.%Y %H:%M:%S", gmtime())
+            self.mpp_zeit.append(uhrzeit)
             try:
                 self.plot_mpp()
             except:
