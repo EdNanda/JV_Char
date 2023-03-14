@@ -59,7 +59,6 @@ def fix_data_and_send_to_measure():
     jv_chars_results = pd.DataFrame()
     curr_volt_results = pd.DataFrame()
 
-    # TODO with multiplexing, there will be another loop here that goes through the cells
     for n, cbb in enumerate(process):
         print("Curve #",str(n))
 
