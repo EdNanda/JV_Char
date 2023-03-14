@@ -152,7 +152,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 self.popup_message("    susi\n"
                                    "was not found")
 
-        self.threadpool = QThreadPool()
+        # self.threadpool = QThreadPool()
 
         self.create_widgets()
 
@@ -197,7 +197,7 @@ class MainWindow(QtWidgets.QMainWindow):
         # Add first vertical layout to the main horizontal one
         layH1.addLayout(layV1, 5)
 
-        ## Make second vertical layout for measurement settings
+        # Make second vertical layout for measurement settings
         layV2 = QtWidgets.QVBoxLayout()
         verticalSpacerV2 = QSpacerItem(20, 10, QSizePolicy.Minimum, QSizePolicy.Expanding)  # To center the layout
 
@@ -1008,6 +1008,7 @@ class MainWindow(QtWidgets.QMainWindow):
         QtTest.QTest.qWait(int(3 * 1000))
 
     def set_intensity_susim(self, intensity):
+
         # print(intensity)
         # self.susi_start_intensity = int(intensity)
         intensity = int(intensity * 10)
