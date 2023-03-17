@@ -4,9 +4,9 @@ __version__ = "1.08-2022"
 import sys
 import matplotlib
 from PyQt5 import QtWidgets, QtGui, QtTest
-from PyQt5.QtWidgets import QWidget, QLineEdit, QFormLayout, QHBoxLayout, QSpacerItem, QGridLayout
-from PyQt5.QtWidgets import QFrame, QPushButton, QCheckBox, QLabel, QToolButton, QTextEdit
-from PyQt5.QtWidgets import QSizePolicy, QMessageBox, QDialog
+from PyQt5.QtWidgets import QWidget, QLineEdit, QFormLayout, QHBoxLayout, QVBoxLayout, QSpacerItem, QGridLayout
+from PyQt5.QtWidgets import QFrame, QPushButton, QCheckBox, QLabel, QToolButton, QTextEdit, QPlainTextEdit
+from PyQt5.QtWidgets import QSizePolicy, QMessageBox, QDialog,QInputDialog
 from PyQt5.QtCore import QThreadPool
 from PyQt5.QtGui import QFont
 from PyQt5.QtWidgets import QTableView
@@ -24,23 +24,11 @@ import os
 import serial
 from time import time, strftime, localtime, gmtime
 from datetime import datetime
-from sklearn.linear_model import LinearRegression
+# from sklearn.linear_model import LinearRegression
 
 rcParams.update({'figure.autolayout': True})
 matplotlib.use('Qt5Agg')
 
-
-# class Worker(QObject):
-#     finished = pyqtSignal()
-#     progress = pyqtSignal(float)
-#
-#     def run(self):
-#         while True:
-#             sleep(0.1)
-#             self.keithley.source_voltage = 0
-#             current = self.keithley.current * 1000
-#             self.progress.emit(current)
-#         self.finished.emit()
 class TableModel(QAbstractTableModel):
 
     def __init__(self, data):
@@ -170,6 +158,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self._plot_ref = None
         self.is_meas_live = False
         self.is_first_plot = True
+        self.is_recipe = False
         # Add a toolbar to control plotting area
         toolbar = NavigationToolbar(self.canvas, self)
 
@@ -455,10 +444,12 @@ class MainWindow(QtWidgets.QMainWindow):
         self.BloadM = QToolButton()
         self.Bsusi_intensity = QToolButton()
         self.Bsusi_off = QToolButton()
+        self.Brecipe = QToolButton()
         self.BsaveM.setText("Save")
         self.BloadM.setText("Load")
         self.Bsusi_intensity.setText("Set")
         self.Bsusi_off.setText("Off")
+        self.Brecipe.setText("Recipe")
         self.BsaveM.setMaximumWidth(40)
         self.BloadM.setMaximumWidth(40)
         self.Bsusi_intensity.setMaximumWidth(40)
@@ -472,6 +463,7 @@ class MainWindow(QtWidgets.QMainWindow):
         LGmeta.addWidget(self.BloadM, 0, 3)
         LGmeta.addWidget(self.Bsusi_intensity, 1, 3)
         LGmeta.addWidget(self.Bsusi_off, 2, 3)
+        LGmeta.addWidget(self.Brecipe,3,3)
 
         # Position layouts inside the third vertical layout V3
         layV3.addItem(verticalSpacerV2)
@@ -512,6 +504,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.logyaxis.stateChanged.connect(self.yaxis_to_log)
         self.four_wire.stateChanged.connect(self.two_four_wires_measurement)
         self.Bsusi_off.clicked.connect(self.susi_shutdown)
+        self.Brecipe.clicked.connect(self.recipe_popup)
 
     def popup_message(self, text):
         qmes = QMessageBox.about(self, "Something happened...", text)
@@ -551,7 +544,6 @@ class MainWindow(QtWidgets.QMainWindow):
         self.Bpath.setEnabled(False)
 
     def create_folder(self, sample, retry=1):
-        # TODO instead, create new files, not folders
         self.folder = self.LEfolder.text()
         if self.folder[-1] != "/":
             self.folder = self.folder + "/"  # Add "/" if non existent
@@ -613,7 +605,7 @@ class MainWindow(QtWidgets.QMainWindow):
             self.Rcurrent = 0
             self.RsunP = 0
 
-        if not self.mpp_bool:
+        if not self.is_mpp_bool:
             all_metaD_labs = self.setup_labs_jv + self.exp_labels + self.glv_labels
             all_metaD_vals = self.setup_vals_jv + self.exp_vars + self.glv_vars
 
@@ -724,15 +716,34 @@ class MainWindow(QtWidgets.QMainWindow):
         vmpp = round(self.jv_chars_results["V_mpp(V)"].iat[-1], 3)
         self.mpp_voltage.setText(str(vmpp))
 
+    def check_filename(self, type, count=1):
+        # TODO instead, create new files, not folders
+        if type == "jv":
+            tag = "JV_"
+        elif type == "mpp":
+            tag = "MPP_"
+        else:
+            tag = "Recipe_"
+
+        filename = self.folder + tag + self.sample + count + ".csv"
+
+        if os.path.exists(filename):
+            count += 1
+            self.check_filename(type, count)
+
+        return filename
+
     def save_data(self):
-        self.mpp_bool = False
+        self.is_mpp_bool = False
         self.gather_all_metadata()
 
         metadata = pd.DataFrame.from_dict(self.meta_dict, orient='index')
 
         empty = pd.DataFrame(data={"": ["--"]})
 
-        filename = self.folder + self.sample + "_JV_characteristics.csv"
+        # filename = self.folder + self.sample + "_JV_characteristics.csv"
+        filename = self.check_filename("jv")
+
         metadata.to_csv(filename, index=True, header=False)
         empty.to_csv(filename, mode="a", index=False, header=False, lineterminator='\n')
         self.jv_chars_results.T.to_csv(filename, mode="a", index=True, header=True)
@@ -745,13 +756,14 @@ class MainWindow(QtWidgets.QMainWindow):
     #     # get_ipython().magic('reset -sf')
 
     def save_mpp(self):
-        self.mpp_bool = True
+        self.is_mpp_bool = True
         self.gather_all_metadata()
         metadata = pd.DataFrame.from_dict(self.meta_dict, orient='index')
         mpp_data = pd.DataFrame({"Time (min)": self.mpp_time, "Hour":self.mpp_zeit, "Voltage (V)": self.res_mpp_voltage,
                                  "Current (mA/cm²)": self.mpp_current, "Power (mW/cm²)": self.mpp_power})
 
-        filename = self.folder + self.sample + "_MPP_measurement.csv"
+        # filename = self.folder + self.sample + "_MPP_measurement.csv"
+        filename = self.check_filename("mpp")
         metadata.to_csv(filename, header=False)
         mpp_data.to_csv(filename, mode="a", index=False)
 
@@ -778,6 +790,21 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.keithley.disable_source()
 
+    def recipe_popup(self):
+        text, ok = QInputDialog.getText(self, 'Make a Recipe', 'Use "F", "B" for Forward and Backward\n'
+                                                               '  and "D", "L" for Dark and light\n'
+                                                               '  separate with commas (,)\n'
+                                                               '    e.g. BL,BL,BL,BD,...')
+        if ok:
+            self.recipe_measurement(text)
+
+
+    def recipe_measurement(self,text):
+        # TODO make a recipe
+        self.is_recipe = True
+        print(text)
+
+
     def jv_chars_calculation(self, volt, curr):
         # Find Isc (find voltage value closest to 0 Volts)
         volt = np.array(volt)
@@ -793,8 +820,13 @@ class MainWindow(QtWidgets.QMainWindow):
         # Fit datapoint around Jsc to get Shunt(parallel) resistance
         reg_par = LinearRegression()
         co = 1 #Change here to increase number of fitted points (co=1 -> 3 points)
-        v_par = volt[v0 - co: v0 + co].reshape(-1, 1)
-        c_par = curr[v0 - co: v0 + co].reshape(-1, 1)
+        try:
+            v_par = volt[v0 - co: v0 + co].reshape(-1, 1)
+            c_par = curr[v0 - co: v0 + co].reshape(-1, 1)
+        except:
+            v_par = volt[v0 : v0 + co].reshape(-1, 1)
+            c_par = curr[v0 : v0 + co].reshape(-1, 1)
+
         reg_par.fit(v_par, c_par)
         m_i = reg_par.coef_[0][0]
 
@@ -1069,39 +1101,52 @@ class MainWindow(QtWidgets.QMainWindow):
         rever_vars = [volt_end, volt_begin - volt_step * 0.95, -volt_step]
         fixed_vars = [time, ap, area]
 
-        check_box_buttons = [self.for_bmD, self.rev_bmD, self.for_bmL, self.rev_bmL]
+        if self.is_recipe:
+            meas_process = self.recipe_list
+        else:
+            check_box_buttons = [self.for_bmD, self.rev_bmD, self.for_bmL, self.rev_bmL]
+
+            meas_process = []
+            for n, cbb in enumerate(check_box_buttons):
+                if cbb.isChecked():
+                    if n == 0:
+                        meas_process.append("FD")
+                    elif n == 1:
+                        meas_process.append("RD")
+                    elif n == 2:
+                        meas_process.append("FL")
+                    else :
+                        meas_process.append("RL")
 
         self.jv_chars_results = pd.DataFrame()
         self.curr_volt_results = pd.DataFrame()
 
         # TODO with multiplexing, there will be another loop here that goes through the cells
-        for n, cbb in enumerate(check_box_buttons):
-            if cbb.isChecked():
-                self.is_first_plot = True
-                if n == 0 or n == 1:  # if it is a dark measurement
-                    self.susi_shutter_close()
-                    ilum = "Dark"
-                else:
-                    self.susi_shutter_open()
-                    ilum = "Light"
+        for n, mpr in enumerate(meas_process):
+            self.is_first_plot = True
+            if "D" in mpr:  # if it is a dark measurement
+                self.susi_shutter_close()
+                ilum = "Dark"
+            else:
+                self.susi_shutter_open()
+                ilum = "Light"
 
-                if n == 0 or n == 2:  # if it is forward
-                    direc = "Forward"
-                    all_vars = forwa_vars + fixed_vars + [ilum + direc]
-                else:
-                    direc = "Reverse"
-                    all_vars = rever_vars + fixed_vars + [ilum + direc]
+            if "F" in mpr:  # if it is forward
+                direc = "Forward"
+                all_vars = forwa_vars + fixed_vars + [ilum + direc]
+            else:
+                direc = "Reverse"
+                all_vars = rever_vars + fixed_vars + [ilum + direc]
 
-                # print(all_vars)
-                volt, curr = self.curr_volt_measurement(all_vars)
-                if self.is_meas_live:
-                    chars = self.jv_chars_calculation(volt, curr)
-                    self.jv_chars_results[direc + "_" + ilum] = chars
-                    self.jv_char_qtabledisplay()
-                self.curr_volt_results["Voltage (V)_" + direc + "_" + ilum] = volt
-                self.curr_volt_results["Current Density(mA/cm²)_" + direc + "_" + ilum] = curr
+            # print(all_vars)
+            volt, curr = self.curr_volt_measurement(all_vars)
+            if self.is_meas_live:
+                chars = self.jv_chars_calculation(volt, curr)
+                self.jv_chars_results[direc + "_" + ilum] = chars
+                self.jv_char_qtabledisplay()
+            self.curr_volt_results["Voltage (V)_" + direc + "_" + ilum] = volt
+            self.curr_volt_results["Current Density(mA/cm²)_" + direc + "_" + ilum] = curr
 
-                    # print(self.curr_volt_results)
 
     def display_live_voltage(self, value, live=True):
         if live:
@@ -1175,7 +1220,7 @@ class MainWindow(QtWidgets.QMainWindow):
     def jv_process(self):
         # Reset values
         if self.is_meas_live:
-            self.create_folder(True)
+            self.create_folder(False)
             self.dis_enable_widgets(True, "jv")
             self.statusBar().showMessage("Measuring JV curve")
             self.keithley.enable_source()
@@ -1207,7 +1252,7 @@ class MainWindow(QtWidgets.QMainWindow):
         if self.is_meas_live:
             self.susi_shutter_open()
             self.reset_plot_mpp()
-            self.create_folder(True)
+            self.create_folder(False)
             self.dis_enable_widgets(True, "mpp")
             self.keithley.enable_source()
             self.curr_volt_tracking()
