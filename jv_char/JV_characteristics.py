@@ -21,6 +21,9 @@ import pyvisa as visa
 import pandas as pd
 import numpy as np
 import os
+from k8090 import relay_card
+import k8090
+import serial.tools.list_ports
 import serial
 from time import time, strftime, localtime, gmtime
 from datetime import datetime
@@ -103,12 +106,30 @@ class MainWindow(QtWidgets.QMainWindow):
         folder = os.path.abspath(os.getcwd()) + "\\"
         self.setWindowIcon(QtGui.QIcon(folder + "solar.ico"))
         np.seterr(divide='ignore', invalid='ignore')
+        self.sample = ""
 
         self.statusBar().showMessage("Program by Edgar Nandayapa - 2022", 10000)
 
         try:
+            self.relaycard = relay_card.connect('COM5')
+            print(f'Firmware version: {self.relaycard.firmware_version}')
+            self.relaycard.factory_reset()
+            self.is_relay = True
+
+            self.relays = []
+            for r in range(8):
+                self.relays.append(self.relaycard.relays[r])
+        except:
+            ports = serial.tools.list_ports.comports()
+
+            for port, desc, hwid in sorted(ports):
+                print("{}: {} [{}]".format(port, desc, hwid))
+
+
+        try:
             # Modify this in case multiple keithley
             rm = visa.ResourceManager()  # Load piVisa
+            print(rm.list_resources())
             device = rm.list_resources()[0]  # Get the first keithley on the list
             self.keithley = Keithley2450(device)
             self.keithley.wires = 4
@@ -126,6 +147,7 @@ class MainWindow(QtWidgets.QMainWindow):
             self.susi.stopbits = 1
             self.susi.timeout = 5
             self.is_susi = True
+            print("susi success")
 
         except:
             self.is_susi = False
@@ -139,6 +161,8 @@ class MainWindow(QtWidgets.QMainWindow):
                 self.statusBar().showMessage("##    susi not found    ##")
                 self.popup_message("    susi\n"
                                    "was not found")
+
+
 
         # self.threadpool = QThreadPool()
 
@@ -334,6 +358,38 @@ class MainWindow(QtWidgets.QMainWindow):
 
         Lsetup.addWidget(QLabel(" "), 5, 0)
 
+        LCsetup = QGridLayout()
+        LCsetup.maximumSize().setWidth(10)
+        self.cell_a = QCheckBox()
+        self.cell_b = QCheckBox()
+        self.cell_c = QCheckBox()
+        self.cell_d = QCheckBox()
+        self.cell_e = QCheckBox()
+        self.cell_f = QCheckBox()
+
+        self.cell_a.setChecked(True)
+        self.cell_b.setChecked(True)
+        self.cell_c.setChecked(True)
+        self.cell_d.setChecked(True)
+        self.cell_e.setChecked(True)
+        self.cell_f.setChecked(True)
+
+        LCsetup.addWidget(QLabel(" "),0 ,0)
+        LCsetup.addWidget(QLabel(" Substrate Cells"), 1, 0, 1, 4, Qt.AlignCenter)
+        LCsetup.addWidget(QLabel("B"), 2, 0, Qt.AlignRight)
+        LCsetup.addWidget(self.cell_b, 2, 1, Qt.AlignRight)
+        LCsetup.addWidget(QLabel("D"), 3, 0, Qt.AlignRight)
+        LCsetup.addWidget(self.cell_d, 3, 1, Qt.AlignRight)
+        LCsetup.addWidget(QLabel("F"), 4, 0, Qt.AlignRight)
+        LCsetup.addWidget(self.cell_f, 4, 1, Qt.AlignRight)
+        LCsetup.addWidget(QLabel("A"), 2, 3, Qt.AlignLeft)
+        LCsetup.addWidget(self.cell_a, 2, 2, Qt.AlignLeft)
+        LCsetup.addWidget(QLabel("C"), 3, 3, Qt.AlignLeft)
+        LCsetup.addWidget(self.cell_c, 3, 2, Qt.AlignLeft)
+        LCsetup.addWidget(QLabel("E"), 4, 3, Qt.AlignLeft)
+        LCsetup.addWidget(self.cell_e, 4, 2, Qt.AlignLeft)
+        LCsetup.addWidget(QLabel(" "), 5, 0)
+
         # Four set of setup values
         LGlabels = QGridLayout()
 
@@ -384,6 +440,7 @@ class MainWindow(QtWidgets.QMainWindow):
         layV2.addLayout(LGsetup)
         layV2.addLayout(LTsetup)
         layV2.addLayout(Lsetup)
+        layV2.addLayout(LCsetup)
         layV2.addLayout(LGlabels)
         layV2.addItem(verticalSpacerV2)
         layV2.addItem(mppLabels)
@@ -716,8 +773,7 @@ class MainWindow(QtWidgets.QMainWindow):
         vmpp = round(self.jv_chars_results["V_mpp(V)"].iat[-1], 3)
         self.mpp_voltage.setText(str(vmpp))
 
-    def check_filename(self, type, count=1):
-        # TODO instead, create new files, not folders
+    def check_filename(self, type, count=0):
         if type == "jv":
             tag = "JV_"
         elif type == "mpp":
@@ -725,23 +781,22 @@ class MainWindow(QtWidgets.QMainWindow):
         else:
             tag = "Recipe_"
 
-        filename = self.folder + tag + self.sample + count + ".csv"
+        file_name = self.folder + tag + self.sample + ".csv"
 
-        if os.path.exists(filename):
+        while os.path.exists(file_name):
             count += 1
-            self.check_filename(type, count)
 
-        return filename
+            file_name = self.folder + tag + self.sample + str(count) + ".csv"
+
+        else:
+            return file_name
 
     def save_data(self):
         self.is_mpp_bool = False
         self.gather_all_metadata()
 
         metadata = pd.DataFrame.from_dict(self.meta_dict, orient='index')
-
         empty = pd.DataFrame(data={"": ["--"]})
-
-        # filename = self.folder + self.sample + "_JV_characteristics.csv"
         filename = self.check_filename("jv")
 
         metadata.to_csv(filename, index=True, header=False)
@@ -749,11 +804,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.jv_chars_results.T.to_csv(filename, mode="a", index=True, header=True)
         empty.to_csv(filename, mode="a", index=False, header=False, lineterminator='\n')
         self.curr_volt_results.to_csv(filename, mode="a", index=False, header=True)
-
-        # print(self.curr_volt_results)
         self.statusBar().showMessage("Data saved successfully", 5000)
-
-    #     # get_ipython().magic('reset -sf')
 
     def save_mpp(self):
         self.is_mpp_bool = True
@@ -762,8 +813,8 @@ class MainWindow(QtWidgets.QMainWindow):
         mpp_data = pd.DataFrame({"Time (min)": self.mpp_time, "Hour":self.mpp_zeit, "Voltage (V)": self.res_mpp_voltage,
                                  "Current (mA/cm²)": self.mpp_current, "Power (mW/cm²)": self.mpp_power})
 
-        # filename = self.folder + self.sample + "_MPP_measurement.csv"
         filename = self.check_filename("mpp")
+
         metadata.to_csv(filename, header=False)
         mpp_data.to_csv(filename, mode="a", index=False)
 
@@ -1121,31 +1172,38 @@ class MainWindow(QtWidgets.QMainWindow):
         self.jv_chars_results = pd.DataFrame()
         self.curr_volt_results = pd.DataFrame()
 
-        # TODO with multiplexing, there will be another loop here that goes through the cells
-        for n, mpr in enumerate(meas_process):
-            self.is_first_plot = True
-            if "D" in mpr:  # if it is a dark measurement
-                self.susi_shutter_close()
-                ilum = "Dark"
-            else:
-                self.susi_shutter_open()
-                ilum = "Light"
+        cell_list = [self.cell_a,self.cell_b,self.cell_c,self.cell_d,self.cell_e,self.cell_f]
+        cell_name = ["a","b","c","d","e","f"]
 
-            if "F" in mpr:  # if it is forward
-                direc = "Forward"
-                all_vars = forwa_vars + fixed_vars + [ilum + direc]
-            else:
-                direc = "Reverse"
-                all_vars = rever_vars + fixed_vars + [ilum + direc]
+        for cn, cell in enumerate(cell_list):
+            if cell.isChecked():
+                for n, mpr in enumerate(meas_process):
+                    self.relays[cn].on()
+                    self.is_first_plot = True
+                    if "D" in mpr:  # if it is a dark measurement
+                        self.susi_shutter_close()
+                        ilum = "Dark"
+                    else:
+                        self.susi_shutter_open()
+                        ilum = "Light"
 
-            # print(all_vars)
-            volt, curr = self.curr_volt_measurement(all_vars)
-            if self.is_meas_live:
-                chars = self.jv_chars_calculation(volt, curr)
-                self.jv_chars_results[direc + "_" + ilum] = chars
-                self.jv_char_qtabledisplay()
-            self.curr_volt_results["Voltage (V)_" + direc + "_" + ilum] = volt
-            self.curr_volt_results["Current Density(mA/cm²)_" + direc + "_" + ilum] = curr
+                    if "F" in mpr:  # if it is forward
+                        direc = "Forward"
+                        all_vars = forwa_vars + fixed_vars + [ilum + direc]
+                    else:
+                        direc = "Reverse"
+                        all_vars = rever_vars + fixed_vars + [ilum + direc]
+
+                    # print(all_vars)
+                    volt, curr = self.curr_volt_measurement(all_vars, cn)
+                    if self.is_meas_live:
+                        chars = self.jv_chars_calculation(volt, curr)
+                        self.jv_chars_results[cell_name[cn] + "_" + direc + "_" + ilum] = chars
+                        self.jv_char_qtabledisplay()
+                    self.curr_volt_results["Voltage (V)_" + cell_name[cn] + "_" + direc + "_" + ilum] = volt
+                    self.curr_volt_results["Current Density(mA/cm²)_" + cell_name[cn] + "_" + direc + "_" + ilum] = curr
+
+                    self.relays[cn].off()
 
 
     def display_live_voltage(self, value, live=True):
@@ -1172,7 +1230,7 @@ class MainWindow(QtWidgets.QMainWindow):
         else:
             self.label_currcurr.setText("")
 
-    def curr_volt_measurement(self, variables):
+    def curr_volt_measurement(self, variables, counter):
         volt_0, volt_f, step, time_s, average_points, area, mode = variables
 
         current = []
@@ -1200,7 +1258,7 @@ class MainWindow(QtWidgets.QMainWindow):
             current.append(ave_curr)
             voltage.append(np.mean(meas_voltages))
 
-            self.plot_jv(voltage, current, mode)
+            self.plot_jv(voltage, current, mode, counter)
 
         # jv_chars = self.jv_chars_calculation(voltage, current)
         self.display_live_current(ave_curr, False)
@@ -1280,6 +1338,8 @@ class MainWindow(QtWidgets.QMainWindow):
 
         max_voltage = mpp_voltage
         time_c = time()
+
+        # TODO mpp cell choose
         for i in np.arange(0, mpp_total_time / 3, mpp_int_time / 1000):
             voltage_test = [max_voltage - mpp_step, max_voltage, max_voltage + mpp_step]
             # print(voltage_test)
@@ -1394,39 +1454,82 @@ class MainWindow(QtWidgets.QMainWindow):
         self.canvas.axes.axvline(0, color='black')
         self._plot_ref = None
 
-    def plot_jv(self, voltage, current, mode):
+    def plot_jv(self, voltage, current, mode, counter):
+
+        if counter == 0:
+            colli ="#0000FF" #blue
+            # collib = "#0000FF90"
+            colda ="#0000FF55"
+            # coldaf = "#0000FF45"
+            name = "a_"
+        elif counter == 1:
+            colli = "#008000"  # green
+            colda = "#00800055"
+            name = "b_"
+        elif counter == 2:
+            colli = "#FF0000"  # red
+            colda = "#FF000055"
+            name = "c_"
+        elif counter == 3:
+            colli = "#00FFFF"  # cyan
+            colda = "#00FFFF55"
+            name = "d_"
+        elif counter == 4:
+            colli = "#FF00FF"  # magenta
+            colda = "#FF00FF55"
+            name = "e_"
+        elif counter == 5:
+            colli = "#FFFF00"  # yellow
+            colda = "#FFFF0055"
+            name = "f_"
+        else:
+            colli = "#000000"  # black
+            colda = "#00000055"
+            name = "g_"
+
         # Make plot
-        # if self._plot_ref is None:
         if self.is_first_plot:
             if "Light" in mode:
                 if "Forward" in mode:
-                    self._plot_ref = self.canvas.axes.plot(voltage, current, 'xb-', label="Forward")
+                    # self._plot_ref = self.canvas.axes.plot(voltage, current, 'xb-', label=name+"Forward")
+                    self._plot_ref = self.canvas.axes.plot(voltage, current, color=colli, linestyle="-",
+                                                           marker = ".", label=name + "Forward")
                     self.is_first_plot = False
                 else:
-                    self._plot_ref = self.canvas.axes.plot(voltage, current, '.r--', label="Backward")
+                    # self._plot_ref = self.canvas.axes.plot(voltage, current, '.r--', label=name+"Backward")
+                    self._plot_ref = self.canvas.axes.plot(voltage, current, color=colli, linestyle="--",
+                                                           marker = ".",label=name + "Backward")
                     self.is_first_plot = False
             else:
                 if "Forward" in mode:
-                    self._plot_ref = self.canvas.axes.plot(voltage, current, linestyle='--',
-                                                           marker='x', color='black', label="Dark For")
+                    # self._plot_ref = self.canvas.axes.plot(voltage, current, linestyle='--',
+                    #                                        marker='x', color='black', label=name+"Dark For")
+                    self._plot_ref = self.canvas.axes.plot(voltage, current, linestyle='-.',
+                                                           marker = "x",color=colda, label=name + "Dark For")
                     self.is_first_plot = False
 
                 else:
-                    self._plot_ref = self.canvas.axes.plot(voltage, current, linestyle='--',
-                                                           marker='.', color='grey', label="Dark Back")
+                    # self._plot_ref = self.canvas.axes.plot(voltage, current, linestyle='--',
+                    #                                        marker='.', color='grey', label=name+"Dark Back")
+                    self._plot_ref = self.canvas.axes.plot(voltage, current, linestyle=':',
+                                                           marker = "x",color=colda, label=name + "Dark Back")
                     self.is_first_plot = False
 
         else:
             if "Light" in mode:
                 if "Forward" in mode:
-                    self.canvas.axes.plot(voltage, current, 'xb-')
+                    # self.canvas.axes.plot(voltage, current, 'xb-')
+                    self._plot_ref = self.canvas.axes.plot(voltage, current, marker = ".", color=colli, linestyle="-")
                 else:
-                    self.canvas.axes.plot(voltage, current, '.r--')
+                    # self.canvas.axes.plot(voltage, current, '.r--')
+                    self.canvas.axes.plot(voltage, current, marker = ".", color=colli, linestyle="--")
             else:
                 if "Forward" in mode:
-                    self.canvas.axes.plot(voltage, current, linestyle='--', marker='x', color='black')
+                    # self.canvas.axes.plot(voltage, current, linestyle='--', marker='x', color='black')
+                    self._plot_ref = self.canvas.axes.plot(voltage, current, marker = "x", linestyle='-.',color=colda)
                 else:
-                    self.canvas.axes.plot(voltage, current, linestyle='--', marker='.', color='grey')
+                    # self.canvas.axes.plot(voltage, current, linestyle='--', marker='.', color='grey')
+                    self._plot_ref = self.canvas.axes.plot(voltage, current, marker = "x", linestyle=':',color=colda)
 
         self.canvas.axes.legend()
 
@@ -1518,6 +1621,8 @@ class MainWindow(QtWidgets.QMainWindow):
                 self.keithley.disable_source()
             if self.is_susi:
                 self.susi.close()
+            # if True:
+            #     k8090.__del__
             event.accept()
 
         else:
