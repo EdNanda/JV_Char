@@ -16,18 +16,15 @@ from matplotlib.figure import Figure
 from matplotlib import rcParams
 from pymeasure.instruments.keithley import Keithley2450
 from sklearn.linear_model import LinearRegression
-from sklearn.model_selection import train_test_split
 import pyvisa as visa
 import pandas as pd
 import numpy as np
 import os
 from k8090 import relay_card
-import k8090
 import serial.tools.list_ports
 import serial
 from time import time, strftime, localtime, gmtime
 from datetime import datetime
-# from sklearn.linear_model import LinearRegression
 
 rcParams.update({'figure.autolayout': True})
 matplotlib.use('Qt5Agg')
@@ -111,8 +108,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self.statusBar().showMessage("Program by Edgar Nandayapa - 2022", 10000)
 
         try:
-            self.relaycard = relay_card.connect('COM5')
-            print(f'Firmware version: {self.relaycard.firmware_version}')
+            self.relaycard = relay_card.connect('COM4')
+            #print(f'Firmware version: {self.relaycard.firmware_version}')
             self.relaycard.factory_reset()
             self.is_relay = True
 
@@ -120,10 +117,12 @@ class MainWindow(QtWidgets.QMainWindow):
             for r in range(8):
                 self.relays.append(self.relaycard.relays[r])
         except:
+            self.is_relay = False
             ports = serial.tools.list_ports.comports()
 
             for port, desc, hwid in sorted(ports):
                 print("{}: {} [{}]".format(port, desc, hwid))
+                print("relay not found")
 
 
         try:
@@ -147,7 +146,6 @@ class MainWindow(QtWidgets.QMainWindow):
             self.susi.stopbits = 1
             self.susi.timeout = 5
             self.is_susi = True
-            print("susi success")
 
         except:
             self.is_susi = False
@@ -186,11 +184,11 @@ class MainWindow(QtWidgets.QMainWindow):
         # Add a toolbar to control plotting area
         toolbar = NavigationToolbar(self.canvas, self)
 
-        self.Ljvvars = QTableView()
-        self.Ljvvars.resize(600, 10)
+        self.Lqtable = QTableView()
+        self.Lqtable.resize(600, 10)
         # self.jvvals.horizontalHeader().setStretchLastSection(True)
-        self.Ljvvars.setAlternatingRowColors(True)
-        self.Ljvvars.setSelectionBehavior(QTableView.SelectRows)
+        self.Lqtable.setAlternatingRowColors(True)
+        self.Lqtable.setSelectionBehavior(QTableView.SelectRows)
         # self.Ljvvars.setColumnWidth(10)
 
         jvstart = pd.DataFrame(
@@ -198,17 +196,17 @@ class MainWindow(QtWidgets.QMainWindow):
                      "P_mpp\n(mW/cm²)", "R_series\n\U00002126cm²", "R_shunt\n\U00002126cm²"])
 
         self.model = TableModel(jvstart)
-        self.Ljvvars.setModel(self.model)
+        self.Lqtable.setModel(self.model)
 
         # Add to (first) vertical layout
         layV1 = QtWidgets.QVBoxLayout()
         # Add Widgets to the layout
         layV1.addWidget(toolbar)
-        layV1.addWidget(self.canvas)
-        layV1.addWidget(self.Ljvvars)
+        layV1.addWidget(self.canvas,5)
+        layV1.addWidget(self.Lqtable, 2)
 
         # Add first vertical layout to the main horizontal one
-        layH1.addLayout(layV1, 5)
+        layH1.addLayout(layV1, 8)
 
         # Make second vertical layout for measurement settings
         layV2 = QtWidgets.QVBoxLayout()
@@ -220,19 +218,19 @@ class MainWindow(QtWidgets.QMainWindow):
         self.LEfolder = QLineEdit()
 
         # Make a grid layout and add labels and fields to it
-        LGsetup = QGridLayout()
-        LGsetup.addWidget(QLabel("Sample:"), 0, 0)
-        LGsetup.addWidget(self.LEsample, 0, 1)
-        LGsetup.addWidget(QLabel("User:"), 1, 0)
-        LGsetup.addWidget(self.LEuser, 1, 1)
+        LsetGeneral = QGridLayout()
+        LsetGeneral.addWidget(QLabel("Sample:"), 0, 0)
+        LsetGeneral.addWidget(self.LEsample, 0, 1)
+        LsetGeneral.addWidget(QLabel("User:"), 1, 0)
+        LsetGeneral.addWidget(self.LEuser, 1, 1)
         self.Bpath = QToolButton()
         self.Bpath.setToolTip("Create a folder containing today's date")
-        LGsetup.addWidget(self.Bpath, 1, 2)
-        LGsetup.addWidget(QLabel("Folder:"), 2, 0)
-        LGsetup.addWidget(self.LEfolder, 2, 1)
+        LsetGeneral.addWidget(self.Bpath, 1, 2)
+        LsetGeneral.addWidget(QLabel("Folder:"), 2, 0)
+        LsetGeneral.addWidget(self.LEfolder, 2, 1)
         self.Bfolder = QToolButton()
         self.Bfolder.setToolTip("Choose a folder where to save the data")
-        LGsetup.addWidget(self.Bfolder, 2, 2)
+        LsetGeneral.addWidget(self.Bfolder, 2, 2)
 
         # Set defaults
         self.Bpath.setText("\U0001F4C6")
@@ -240,7 +238,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.LEfolder.setText("C:/Data/")
 
         # Second set of setup values
-        LTsetup = QGridLayout()
+        LsetParameters = QGridLayout()
         self.volt_start = QLineEdit()
         self.volt_end = QLineEdit()
         self.volt_step = QLineEdit()
@@ -270,37 +268,37 @@ class MainWindow(QtWidgets.QMainWindow):
 
         # Set widget texts
         self.volt_start.setText("-0.2")
-        self.volt_end.setText("0.65")
-        self.volt_step.setText("0.05")
-        self.ave_pts.setText("3")
+        self.volt_end.setText("1.2")
+        self.volt_step.setText("0.1")
+        self.ave_pts.setText("2")
         self.int_time.setText("0.1")
         self.set_time.setText("0.1")
         self.curr_lim.setText("300")
-        self.sam_area.setText("2")
+        self.sam_area.setText("0.16")
         self.pow_dens.setText("100")
         # self.sun_ref.setText("74")
         # self.cell_num.setText("1")#module
 
         # Position labels and field in a grid
-        LTsetup.addWidget(QLabel(" "), 0, 0)
-        LTsetup.addWidget(QLabel("Start Voltage (V)"), 1, 0, Qt.AlignRight)
-        LTsetup.addWidget(self.volt_start, 1, 1, Qt.AlignLeft)
-        LTsetup.addWidget(QLabel("End Voltage (V)"), 1, 2, Qt.AlignRight)
-        LTsetup.addWidget(self.volt_end, 1, 3, Qt.AlignLeft)
-        LTsetup.addWidget(QLabel("Step size(V)"), 2, 0, Qt.AlignRight)
-        LTsetup.addWidget(self.volt_step, 2, 1, Qt.AlignLeft)
-        LTsetup.addWidget(QLabel("Averaging points"), 2, 2, Qt.AlignRight)
-        LTsetup.addWidget(self.ave_pts, 2, 3, Qt.AlignLeft)
-        LTsetup.addWidget(QLabel("Integration time (s)"), 3, 0, Qt.AlignRight)
-        LTsetup.addWidget(self.int_time, 3, 1, Qt.AlignLeft)
-        LTsetup.addWidget(QLabel("Settling time (s)"), 3, 2, Qt.AlignRight)
-        LTsetup.addWidget(self.set_time, 3, 3, Qt.AlignLeft)
-        LTsetup.addWidget(QLabel("Current Limit (mA)"), 4, 0, Qt.AlignRight)
-        LTsetup.addWidget(self.curr_lim, 4, 1, Qt.AlignLeft)
-        LTsetup.addWidget(QLabel("Cell area (cm²)"), 4, 2, Qt.AlignRight)
-        LTsetup.addWidget(self.sam_area, 4, 3, Qt.AlignLeft)
-        LTsetup.addWidget(QLabel("Power Density (mW/cm²)"), 5, 0, Qt.AlignRight)
-        LTsetup.addWidget(self.pow_dens, 5, 1, Qt.AlignLeft)
+        LsetParameters.addWidget(QLabel(" "), 0, 0)
+        LsetParameters.addWidget(QLabel("Start Voltage (V)"), 1, 0, Qt.AlignRight)
+        LsetParameters.addWidget(self.volt_start, 1, 1, Qt.AlignLeft)
+        LsetParameters.addWidget(QLabel("End Voltage (V)"), 1, 2, Qt.AlignRight)
+        LsetParameters.addWidget(self.volt_end, 1, 3, Qt.AlignLeft)
+        LsetParameters.addWidget(QLabel("Step size(V)"), 2, 0, Qt.AlignRight)
+        LsetParameters.addWidget(self.volt_step, 2, 1, Qt.AlignLeft)
+        LsetParameters.addWidget(QLabel("Averaging points"), 2, 2, Qt.AlignRight)
+        LsetParameters.addWidget(self.ave_pts, 2, 3, Qt.AlignLeft)
+        LsetParameters.addWidget(QLabel("Integration time (s)"), 3, 0, Qt.AlignRight)
+        LsetParameters.addWidget(self.int_time, 3, 1, Qt.AlignLeft)
+        LsetParameters.addWidget(QLabel("Settling time (s)"), 3, 2, Qt.AlignRight)
+        LsetParameters.addWidget(self.set_time, 3, 3, Qt.AlignLeft)
+        LsetParameters.addWidget(QLabel("Current Limit (mA)"), 4, 0, Qt.AlignRight)
+        LsetParameters.addWidget(self.curr_lim, 4, 1, Qt.AlignLeft)
+        LsetParameters.addWidget(QLabel("Cell area (cm²)"), 4, 2, Qt.AlignRight)
+        LsetParameters.addWidget(self.sam_area, 4, 3, Qt.AlignLeft)
+        LsetParameters.addWidget(QLabel("Power Density (mW/cm²)"), 5, 0, Qt.AlignRight)
+        LsetParameters.addWidget(self.pow_dens, 5, 1, Qt.AlignLeft)
         # LTsetup.addWidget(QLabel("1-Sun Reference (mA)"), 5, 2, Qt.AlignRight)
         # LTsetup.addWidget(self.sun_ref, 5, 3, Qt.AlignLeft)
         # LTsetup.addWidget(QLabel("Ref. Current (mA)\nSun percentage"),6,2,Qt.AlignRight)
@@ -337,71 +335,98 @@ class MainWindow(QtWidgets.QMainWindow):
         self.label_currvolt = QLabel("")
         # self.refPower.setMaximumWidth(sMW*2)
 
-        Lsetup = QGridLayout()
-        Lsetup.setColumnMinimumWidth(1, 0)
-        Lsetup.setColumnMinimumWidth(2, 0)
-        Lsetup.addWidget(QLabel(" "), 0, 0)
-        Lsetup.addWidget(label_for, 1, 1)
-        Lsetup.addWidget(label_rev, 1, 2)
-        Lsetup.addWidget(QLabel("Dark measurement"), 2, 0, Qt.AlignRight)
-        Lsetup.addWidget(self.for_bmD, 2, 1)
-        Lsetup.addWidget(self.rev_bmD, 2, 2)
-        Lsetup.addWidget(QLabel("Light measurement"), 3, 0, Qt.AlignRight)
-        Lsetup.addWidget(self.for_bmL, 3, 1)
-        Lsetup.addWidget(self.rev_bmL, 3, 2)
-        Lsetup.addWidget(QLabel("4-Wire"), 4, 0, Qt.AlignRight)
-        Lsetup.addWidget(self.four_wire, 4, 1)
-        Lsetup.addWidget(QLabel("log Y-axis"), 5, 0, Qt.AlignRight)
-        Lsetup.addWidget(self.logyaxis, 5, 1)
+        LsetProcess = QGridLayout()
+        LsetProcess.setColumnMinimumWidth(1, 0)
+        LsetProcess.setColumnMinimumWidth(2, 0)
+        LsetProcess.addWidget(QLabel(" "), 0, 0)
+        LsetProcess.addWidget(label_for, 1, 1)
+        LsetProcess.addWidget(label_rev, 1, 2)
+        LsetProcess.addWidget(QLabel("Dark measurement"), 2, 0, Qt.AlignRight)
+        LsetProcess.addWidget(self.for_bmD, 2, 1)
+        LsetProcess.addWidget(self.rev_bmD, 2, 2)
+        LsetProcess.addWidget(QLabel("Light measurement"), 3, 0, Qt.AlignRight)
+        LsetProcess.addWidget(self.for_bmL, 3, 1)
+        LsetProcess.addWidget(self.rev_bmL, 3, 2)
+        LsetProcess.addWidget(QLabel("4-Wire"), 4, 0, Qt.AlignRight)
+        LsetProcess.addWidget(self.four_wire, 4, 1)
+        LsetProcess.addWidget(QLabel("log Y-axis"), 5, 0, Qt.AlignRight)
+        LsetProcess.addWidget(self.logyaxis, 5, 1)
         # Lsetup.addWidget(self.refCurrent, 2, 3, 2, 1, Qt.AlignRight)
-        Lsetup.addWidget(self.susiShutter, 4, 3, 2, 1, Qt.AlignRight)
+        LsetProcess.addWidget(self.susiShutter, 4, 3, 2, 1, Qt.AlignRight)
 
-        Lsetup.addWidget(QLabel(" "), 5, 0)
+        LsetProcess.addWidget(QLabel(" "), 5, 0)
 
-        LCsetup = QGridLayout()
-        LCsetup.maximumSize().setWidth(10)
+        LsetCells = QGridLayout()
+        LsetCells.maximumSize().setWidth(10)
+        self.multiplex = QCheckBox()
         self.cell_a = QCheckBox()
         self.cell_b = QCheckBox()
         self.cell_c = QCheckBox()
         self.cell_d = QCheckBox()
         self.cell_e = QCheckBox()
         self.cell_f = QCheckBox()
+        self.cell_g = QCheckBox()
 
+        self.multiplex.setChecked(True)
         self.cell_a.setChecked(True)
         self.cell_b.setChecked(True)
         self.cell_c.setChecked(True)
         self.cell_d.setChecked(True)
         self.cell_e.setChecked(True)
         self.cell_f.setChecked(True)
+        self.cell_g.setChecked(True)
 
-        LCsetup.addWidget(QLabel(" "),0 ,0)
-        LCsetup.addWidget(QLabel(" Substrate Cells"), 1, 0, 1, 4, Qt.AlignCenter)
-        LCsetup.addWidget(QLabel("B"), 2, 0, Qt.AlignRight)
-        LCsetup.addWidget(self.cell_b, 2, 1, Qt.AlignRight)
-        LCsetup.addWidget(QLabel("D"), 3, 0, Qt.AlignRight)
-        LCsetup.addWidget(self.cell_d, 3, 1, Qt.AlignRight)
-        LCsetup.addWidget(QLabel("F"), 4, 0, Qt.AlignRight)
-        LCsetup.addWidget(self.cell_f, 4, 1, Qt.AlignRight)
-        LCsetup.addWidget(QLabel("A"), 2, 3, Qt.AlignLeft)
-        LCsetup.addWidget(self.cell_a, 2, 2, Qt.AlignLeft)
-        LCsetup.addWidget(QLabel("C"), 3, 3, Qt.AlignLeft)
-        LCsetup.addWidget(self.cell_c, 3, 2, Qt.AlignLeft)
-        LCsetup.addWidget(QLabel("E"), 4, 3, Qt.AlignLeft)
-        LCsetup.addWidget(self.cell_e, 4, 2, Qt.AlignLeft)
-        LCsetup.addWidget(QLabel(" "), 5, 0)
+        self.area_a = QLineEdit()
+        self.area_b = QLineEdit()
+        self.area_c = QLineEdit()
+        self.area_d = QLineEdit()
+        self.area_e = QLineEdit()
+        self.area_f = QLineEdit()
+        self.area_g = QLineEdit()
+
+        cells = [self.area_a, self.area_b, self.area_c, self.area_d, self.area_e, self.area_f, self.area_g]
+
+        for ce in cells:
+            ce.setMaximumWidth(40)
+            ce.setText("0.16")
+
+        self.area_g.setText("1")
+
+        LsetCells.addWidget(QLabel(" "), 0, 0)
+        LsetCells.addWidget(QLabel("Multiplexing"), 1, 0, Qt.AlignRight)
+        LsetCells.addWidget(self.multiplex, 1, 1, Qt.AlignLeft)
+        LsetCells.addWidget(QLabel("B"), 2, 0, Qt.AlignRight)
+        LsetCells.addWidget(self.area_b, 2, 1, Qt.AlignCenter)
+        LsetCells.addWidget(self.cell_b, 2, 2, Qt.AlignRight)
+        LsetCells.addWidget(QLabel("D"), 3, 0, Qt.AlignRight)
+        LsetCells.addWidget(self.area_d, 3, 1, Qt.AlignCenter)
+        LsetCells.addWidget(self.cell_d, 3, 2, Qt.AlignRight)
+        LsetCells.addWidget(QLabel("F"), 4, 0, Qt.AlignRight)
+        LsetCells.addWidget(self.area_f, 4, 1, Qt.AlignCenter)
+        LsetCells.addWidget(self.cell_f, 4, 2, Qt.AlignRight)
+        LsetCells.addWidget(QLabel("A"), 2, 6, Qt.AlignLeft)
+        LsetCells.addWidget(self.area_a, 2, 5, Qt.AlignCenter)
+        LsetCells.addWidget(self.cell_a, 2, 4, Qt.AlignLeft)
+        LsetCells.addWidget(QLabel("C"), 3, 6, Qt.AlignLeft)
+        LsetCells.addWidget(self.area_c, 3, 5, Qt.AlignCenter)
+        LsetCells.addWidget(self.cell_c, 3, 4, Qt.AlignLeft)
+        LsetCells.addWidget(QLabel("E"), 4, 6, Qt.AlignLeft)
+        LsetCells.addWidget(self.area_e, 4, 5, Qt.AlignCenter)
+        LsetCells.addWidget(self.cell_e, 4, 4, Qt.AlignLeft)
+        LsetCells.addWidget(QLabel(" "), 5, 3)
 
         # Four set of setup values
-        LGlabels = QGridLayout()
+        LsetStart = QGridLayout()
 
         self.BStart = QPushButton("START")
         self.BStart.setFont(QFont("Arial", 14, QFont.Bold))
         self.BStart.setStyleSheet("color : green;")
-        LGlabels.addWidget(self.BStart, 1, 0, 1, 4)
-        LGlabels.addWidget(self.label_currvolt, 2, 0, 1, 1)
-        LGlabels.addWidget(self.label_currcurr, 3, 0, 1, 1)
+        LsetStart.addWidget(self.BStart, 1, 0, 1, 4)
+        LsetStart.addWidget(self.label_currvolt, 2, 0, 1, 1)
+        LsetStart.addWidget(self.label_currcurr, 3, 0, 1, 1)
         # Lsetup.addRow(" ",QFrame())
 
-        mppLabels = QGridLayout()
+        LsetMPP = QGridLayout()
 
         self.mpptitle = QLabel("Maximum Power Point Tracking")
         self.mpptitle.setFont(QtGui.QFont("Arial", 9, weight=QtGui.QFont.Bold))
@@ -421,29 +446,31 @@ class MainWindow(QtWidgets.QMainWindow):
         self.mpp_stepSize.setText("0.001")
         self.mpp_voltage.setText("0.45")
 
-        mppLabels.addWidget(self.mpptitle, 0, 0, 1, 3)
-        mppLabels.addWidget(QLabel("Total time (min)  "), 1, 0, Qt.AlignRight)
-        mppLabels.addWidget(self.mpp_ttime, 1, 1)
-        mppLabels.addWidget(QLabel("Int. time (ms)  "), 1, 2, Qt.AlignRight)
-        mppLabels.addWidget(self.mpp_inttime, 1, 3)
-        mppLabels.addWidget(QLabel("Step size (V)  "), 2, 0, Qt.AlignRight)
-        mppLabels.addWidget(self.mpp_stepSize, 2, 1)
-        mppLabels.addWidget(QLabel("Voltage (V)  "), 2, 2, Qt.AlignRight)
-        mppLabels.addWidget(self.mpp_voltage, 2, 3)
+        LsetMPP.addWidget(self.mpptitle, 0, 0, 1, 3)
+        LsetMPP.addWidget(QLabel("Total time (min)  "), 1, 0, Qt.AlignRight)
+        LsetMPP.addWidget(self.mpp_ttime, 1, 1)
+        LsetMPP.addWidget(QLabel("Int. time (ms)  "), 1, 2, Qt.AlignRight)
+        LsetMPP.addWidget(self.mpp_inttime, 1, 3)
+        LsetMPP.addWidget(QLabel("Step size (V)  "), 2, 0, Qt.AlignRight)
+        LsetMPP.addWidget(self.mpp_stepSize, 2, 1)
+        LsetMPP.addWidget(QLabel("Voltage (V)  "), 2, 2, Qt.AlignRight)
+        LsetMPP.addWidget(self.mpp_voltage, 2, 3)
         self.mppStart = QPushButton("START")
         self.mppStart.setFont(QFont("Arial", 10, QFont.Bold))
         self.mppStart.setStyleSheet("color : blue;")
-        mppLabels.addWidget(self.mppStart, 3, 0, 1, 4)
+        LsetMPP.addWidget(self.mppStart, 3, 0, 1, 4)
 
         # Position all these sets into the second layout V2
         layV2.addItem(verticalSpacerV2)
-        layV2.addLayout(LGsetup)
-        layV2.addLayout(LTsetup)
-        layV2.addLayout(Lsetup)
-        layV2.addLayout(LCsetup)
-        layV2.addLayout(LGlabels)
+        layV2.addLayout(LsetGeneral)
+        layV2.addLayout(LsetParameters)
+        layV2.addLayout(LsetProcess)
         layV2.addItem(verticalSpacerV2)
-        layV2.addItem(mppLabels)
+        layV2.addLayout(LsetCells)
+        layV2.addLayout(LsetStart)
+        layV2.addItem(verticalSpacerV2)
+        layV2.addItem(LsetMPP)
+        layV2.addItem(verticalSpacerV2)
 
         # Add to main horizontal layout with a spacer (for good looks)
         horizontalSpacerH1 = QSpacerItem(10, 70, QSizePolicy.Minimum, QSizePolicy.Minimum)
@@ -474,29 +501,29 @@ class MainWindow(QtWidgets.QMainWindow):
                                self.mpp_inttime, self.mpp_stepSize, self.mpp_voltage, self.sam_area]
 
         # Make a new layout and position relevant values
-        LmDataExp = QFormLayout()
-        LmDataExp.addRow(QLabel('EXPERIMENT VARIABLES'))
+        LmetaSample = QFormLayout()
+        LmetaSample.addRow(QLabel('EXPERIMENT VARIABLES'))
 
         for ev in self.exp_labels:
             Evar = QLineEdit()
             # Evar.setMaximumWidth(160)
-            LmDataExp.addRow(ev, Evar)
+            LmetaSample.addRow(ev, Evar)
             self.exp_vars.append(Evar)
 
-        LmDataBox = QFormLayout()
-        LmDataBox.addRow(" ", QFrame())
-        LmDataBox.addRow(QLabel('GLOVEBOX VARIABLES'))
+        LmetaGlovebox = QFormLayout()
+        LmetaGlovebox.addRow(" ", QFrame())
+        LmetaGlovebox.addRow(QLabel('GLOVEBOX VARIABLES'))
         for eb in self.glv_labels:
             Evar = QLineEdit()
             # Evar.setMaximumWidth(120)
-            LmDataBox.addRow(eb, Evar)
+            LmetaGlovebox.addRow(eb, Evar)
             self.glv_vars.append(Evar)
         self.com_labels = QTextEdit()
         self.com_labels.setMaximumHeight(50)
         self.com_labels.setMaximumWidth(120)
-        LmDataBox.addRow("Comments", self.com_labels)
+        LmetaGlovebox.addRow("Comments", self.com_labels)
 
-        LGmeta = QGridLayout()
+        LextraButtons = QGridLayout()
         self.BsaveM = QToolButton()
         self.BloadM = QToolButton()
         self.Bsusi_intensity = QToolButton()
@@ -512,21 +539,23 @@ class MainWindow(QtWidgets.QMainWindow):
         self.Bsusi_intensity.setMaximumWidth(40)
         self.Bsusi_off.setMaximumWidth(40)
 
-        LGmeta.addWidget(QLabel(""), 0, 0)
-        LGmeta.addWidget(QLabel("Metadata:"), 0, 1)
-        LGmeta.addWidget(QLabel("SuSi Intensity:"), 1, 1, 1, 2)
-        LGmeta.addWidget(QLabel("SuSi Off:"), 2, 1)
-        LGmeta.addWidget(self.BsaveM, 0, 2)
-        LGmeta.addWidget(self.BloadM, 0, 3)
-        LGmeta.addWidget(self.Bsusi_intensity, 1, 3)
-        LGmeta.addWidget(self.Bsusi_off, 2, 3)
-        LGmeta.addWidget(self.Brecipe,3,3)
+        LextraButtons.addWidget(QLabel(""), 0, 0)
+        LextraButtons.addWidget(QLabel("Metadata:"), 0, 1)
+        LextraButtons.addWidget(QLabel("SuSi Intensity:"), 1, 1, 1, 2)
+        LextraButtons.addWidget(QLabel("SuSi Off:"), 2, 1)
+        LextraButtons.addWidget(self.BsaveM, 0, 2)
+        LextraButtons.addWidget(self.BloadM, 0, 3)
+        LextraButtons.addWidget(self.Bsusi_intensity, 1, 3)
+        LextraButtons.addWidget(self.Bsusi_off, 2, 3)
+        LextraButtons.addWidget(self.Brecipe, 3, 3)
 
         # Position layouts inside the third vertical layout V3
         layV3.addItem(verticalSpacerV2)
-        layV3.addLayout(LmDataExp)
-        layV3.addLayout(LmDataBox)
-        layV3.addLayout(LGmeta)
+        layV3.addLayout(LmetaSample)
+        layV3.addItem(verticalSpacerV2)
+        layV3.addLayout(LmetaGlovebox)
+        layV3.addItem(verticalSpacerV2)
+        layV3.addLayout(LextraButtons)
         layV3.addItem(verticalSpacerV2)
 
         # Add to main horizontal layout with a spacer (for good looks)
@@ -542,6 +571,13 @@ class MainWindow(QtWidgets.QMainWindow):
         # print(self.keithley.voltage)
         self.other_buttons = [self.for_bmL, self.rev_bmL, self.for_bmD, self.rev_bmD, self.four_wire,  # self.logyaxis,
                               self.BsaveM, self.BloadM, self.Bsusi_intensity]
+
+        if not self.is_relay:
+            self.multiplex.setChecked(False)
+            self.multiplexing_allow()
+            self.multiplex.setEnabled(False)
+        else:
+            self.is_multiplex = True
 
         if self.is_susi:
             self.susi_startup()
@@ -562,6 +598,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.four_wire.stateChanged.connect(self.two_four_wires_measurement)
         self.Bsusi_off.clicked.connect(self.susi_shutdown)
         self.Brecipe.clicked.connect(self.recipe_popup)
+        self.multiplex.stateChanged.connect(self.multiplexing_allow)
 
     def popup_message(self, text):
         qmes = QMessageBox.about(self, "Something happened...", text)
@@ -630,7 +667,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.create_folder(False)
         self.gather_all_metadata()
         metadata = pd.DataFrame.from_dict(self.meta_dict, orient='index')
-        metadata.to_csv(self.folder + "metadata.csv", header=False)
+        metadata.to_csv(self.folder + "metadata.txt", header=False, sep=",")
         self.statusBar().showMessage("Metadata file saved successfully", 5000)
 
     def load_meta(self):
@@ -700,7 +737,18 @@ class MainWindow(QtWidgets.QMainWindow):
             self.keithley.wires = 2
         # print(self.keithley.wires)
 
+    def multiplexing_allow(self):
+        fields = [self.area_a, self.area_b, self.area_c, self.area_d, self.area_e, self.area_f,
+                  self.cell_a, self.cell_b, self.cell_c, self.cell_d, self.cell_e, self.cell_f]
 
+        if self.multiplex.isChecked():
+            self.is_multiplex = True
+            for f in fields:
+                f.setEnabled(True)
+        else:
+            self.is_multiplex = False
+            for f in fields:
+                f.setEnabled(False)
     def disable_susi(self):
         wi_dis = [self.susiShutter, self.for_bmD, self.rev_bmD, self.Bsusi_intensity, self.Bsusi_off]
 
@@ -744,7 +792,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def fix_jv_chars_for_save(self):
         names = ["Voc (V)", "Jsc (mA/cm2)", "FF (%)", "PCE (%)", "V_mpp (V)", "J_mpp (mA/cm2)", "P_mpp (mW/cm2)",
-                 "R_series (Ohm cm2)", "R_shunt (Ohm cm2)"]
+                 "R_series (Ohm cm2)", "R_shunt (Ohm cm2)", "Time"]
         names_f = [na.replace(" ", "") for na in names]
         # names_t = [na.replace(" ","\n") for na in names]
         # empty = ["","","","","","","","",""]
@@ -754,7 +802,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def jv_char_qtabledisplay(self):
         names = ["Voc (V)", "Jsc (mA/cm²)", "FF (%)", "PCE (%)", "V_mpp (V)", "J_mpp (mA/cm²)", "P_mpp (mW/cm²)",
-                 "R_series (\U00002126cm²)", "R_shunt (\U00002126cm²)"]
+                 "R_series (\U00002126cm²)", "R_shunt (\U00002126cm²)", "Time"]
         # names_f = [na.replace(" ","") for na in names] 
         names_t = [na.replace(" ", "\n") for na in names]
         values = self.jv_chars_results.T.copy()
@@ -767,7 +815,7 @@ class MainWindow(QtWidgets.QMainWindow):
             else:
                 values.rename(index={v: v[:-6]}, inplace=True)
         self.model = TableModel(values)
-        self.Ljvvars.setModel(self.model)
+        self.Lqtable.setModel(self.model)
 
     def vmpp_value_to_tracking(self):
         vmpp = round(self.jv_chars_results["V_mpp(V)"].iat[-1], 3)
@@ -781,13 +829,13 @@ class MainWindow(QtWidgets.QMainWindow):
         else:
             tag = "Recipe_"
 
-        file_name = self.folder + tag + self.sample + ".csv"
+        file_name = self.folder + tag + self.sample + ".txt"
 
         while os.path.exists(file_name):
             count += 1
 
-            file_name = self.folder + tag + self.sample + str(count) + ".csv"
-
+            file_name = self.folder + tag + self.sample + "-" + str(count) + ".txt"
+            # print(file_name)
         else:
             return file_name
 
@@ -798,12 +846,12 @@ class MainWindow(QtWidgets.QMainWindow):
         metadata = pd.DataFrame.from_dict(self.meta_dict, orient='index')
         empty = pd.DataFrame(data={"": ["--"]})
         filename = self.check_filename("jv")
-
-        metadata.to_csv(filename, index=True, header=False)
-        empty.to_csv(filename, mode="a", index=False, header=False, lineterminator='\n')
-        self.jv_chars_results.T.to_csv(filename, mode="a", index=True, header=True)
-        empty.to_csv(filename, mode="a", index=False, header=False, lineterminator='\n')
-        self.curr_volt_results.to_csv(filename, mode="a", index=False, header=True)
+        # print("  " + filename)
+        metadata.to_csv(filename, index=True, header=False, sep=",")
+        empty.to_csv(filename, mode="a", index=False, header=False, lineterminator='\n', sep=",")
+        self.jv_chars_results.T.to_csv(filename, mode="a", index=True, header=True, sep=",")
+        empty.to_csv(filename, mode="a", index=False, header=False, lineterminator='\n', sep=",")
+        self.curr_volt_results.to_csv(filename, mode="a", index=False, header=True, sep=",")
         self.statusBar().showMessage("Data saved successfully", 5000)
 
     def save_mpp(self):
@@ -815,8 +863,8 @@ class MainWindow(QtWidgets.QMainWindow):
 
         filename = self.check_filename("mpp")
 
-        metadata.to_csv(filename, header=False)
-        mpp_data.to_csv(filename, mode="a", index=False)
+        metadata.to_csv(filename, header=False, sep=",")
+        mpp_data.to_csv(filename, mode="a", index=False, sep=",")
 
         self.statusBar().showMessage("Data saved successfully", 5000)
 
@@ -920,7 +968,9 @@ class MainWindow(QtWidgets.QMainWindow):
         pin = float(self.pow_dens.text())  # mW/cm²
         pce = abs(voc * isc * ff) / pin
 
-        jv_char = [voc, isc, ff, pce, mpp_v, mpp_c, mpp_p, r_ser, r_par]
+        uhrzeit = strftime("%d.%m.%Y %H:%M:%S", gmtime())
+
+        jv_char = [voc, isc, ff, pce, mpp_v, mpp_c, mpp_p, r_ser, r_par, uhrzeit]
 
         return jv_char
 
@@ -1038,7 +1088,7 @@ class MainWindow(QtWidgets.QMainWindow):
         except:
             df = pd.DataFrame(columns=["Date", "Lamp Power(%)"])
             df = self.log_susi_newinput(90.5, df)
-            df.to_csv(logpath, index=False)
+            df.to_csv(logpath, index=False, sep=",")
 
         intensity = df["Lamp Power(%)"].iloc[-1]
         self.susi_percentage = intensity
@@ -1050,7 +1100,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
         df = pd.read_csv(logpath, index_col=None)
         df = self.log_susi_newinput(intensity, df)
-        df.to_csv(logpath, index=False)
+        df.to_csv(logpath, index=False, sep=",")
 
         return intensity
 
@@ -1166,17 +1216,21 @@ class MainWindow(QtWidgets.QMainWindow):
                         meas_process.append("RD")
                     elif n == 2:
                         meas_process.append("FL")
-                    else :
+                    else:
                         meas_process.append("RL")
 
         self.jv_chars_results = pd.DataFrame()
         self.curr_volt_results = pd.DataFrame()
 
-        cell_list = [self.cell_a,self.cell_b,self.cell_c,self.cell_d,self.cell_e,self.cell_f]
-        cell_name = ["a","b","c","d","e","f"]
+        if self.is_multiplex:
+            cell_list = [self.cell_a,self.cell_b,self.cell_c,self.cell_d,self.cell_e,self.cell_f]
+            cell_name = ["a","b","c","d","e","f"]
+        else:
+            cell_list = [self.cell_g]
+            cell_name = [""]
 
         for cn, cell in enumerate(cell_list):
-            if cell.isChecked():
+            if cell.isChecked() or not self.is_multiplex:
                 for n, mpr in enumerate(meas_process):
                     self.relays[cn].on()
                     self.is_first_plot = True
@@ -1196,6 +1250,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
                     # print(all_vars)
                     volt, curr = self.curr_volt_measurement(all_vars, cn)
+
                     if self.is_meas_live:
                         chars = self.jv_chars_calculation(volt, curr)
                         self.jv_chars_results[cell_name[cn] + "_" + direc + "_" + ilum] = chars
@@ -1479,8 +1534,8 @@ class MainWindow(QtWidgets.QMainWindow):
             colda = "#FF00FF55"
             name = "e_"
         elif counter == 5:
-            colli = "#FFFF00"  # yellow
-            colda = "#FFFF0055"
+            colli = "#964b00"  # yellow
+            colda = "#964b0055"
             name = "f_"
         else:
             colli = "#000000"  # black
@@ -1498,14 +1553,14 @@ class MainWindow(QtWidgets.QMainWindow):
                 else:
                     # self._plot_ref = self.canvas.axes.plot(voltage, current, '.r--', label=name+"Backward")
                     self._plot_ref = self.canvas.axes.plot(voltage, current, color=colli, linestyle="--",
-                                                           marker = ".",label=name + "Backward")
+                                                           marker = "x",label=name + "Backward")
                     self.is_first_plot = False
             else:
                 if "Forward" in mode:
                     # self._plot_ref = self.canvas.axes.plot(voltage, current, linestyle='--',
                     #                                        marker='x', color='black', label=name+"Dark For")
                     self._plot_ref = self.canvas.axes.plot(voltage, current, linestyle='-.',
-                                                           marker = "x",color=colda, label=name + "Dark For")
+                                                           marker = ".",color=colda, label=name + "Dark For")
                     self.is_first_plot = False
 
                 else:
@@ -1522,16 +1577,16 @@ class MainWindow(QtWidgets.QMainWindow):
                     self._plot_ref = self.canvas.axes.plot(voltage, current, marker = ".", color=colli, linestyle="-")
                 else:
                     # self.canvas.axes.plot(voltage, current, '.r--')
-                    self.canvas.axes.plot(voltage, current, marker = ".", color=colli, linestyle="--")
+                    self.canvas.axes.plot(voltage, current, marker = "x", color=colli, linestyle="--")
             else:
                 if "Forward" in mode:
                     # self.canvas.axes.plot(voltage, current, linestyle='--', marker='x', color='black')
-                    self._plot_ref = self.canvas.axes.plot(voltage, current, marker = "x", linestyle='-.',color=colda)
+                    self._plot_ref = self.canvas.axes.plot(voltage, current, marker = ".", linestyle='-.',color=colda)
                 else:
                     # self.canvas.axes.plot(voltage, current, linestyle='--', marker='.', color='grey')
                     self._plot_ref = self.canvas.axes.plot(voltage, current, marker = "x", linestyle=':',color=colda)
 
-        self.canvas.axes.legend()
+        self.canvas.axes.legend(fontsize="8")
 
         volt, curr = self.collect_all_values_iv(voltage, current)
         self.center_plot(volt, curr)

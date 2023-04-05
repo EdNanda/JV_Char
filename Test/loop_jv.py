@@ -15,7 +15,7 @@ rm = visa.ResourceManager()  # Load piVisa
 device = rm.list_resources()[0]  # Get the first keithley on the list
 keithley = Keithley2450(device)
 
-filename = "C:\\Data\\Mehmet\\IV-Loop\\D128_spincoating\\D128_12_JV_characteristics.csv"
+filename = "C:\\Data\\Mehmet\\IV-Loop\\D135_spincoating\\D135_3_JV_characteristics.csv"
 
 
 def jv_measurement(save_file):
@@ -45,12 +45,12 @@ def fix_data_and_send_to_measure():
 
     # area = float(sam_area.text())
     volt_begin = -0.2
-    volt_end = 1.5
+    volt_end = 1.2
     volt_step = 0.05
     ave_pts = 3
     set_time = 0.1
 
-    process = ["f","b","f","b","f","b","f","b","f","b","f","b","f","b","f","b","f","b","f","b","f","b","f","b","f","b","f","b","f","b","f","b","f","b","f","b","f","b","f","b", ]
+    process = ["f","b","f","b","f","b","f","b","f","b","f","b","f","b","f","b","f","b","f","b","f","b","f","b","f","b","f","b","f","b","f","b","f","b","f","b","f","b","f","b"]
 
     forwa_vars = [volt_begin, volt_end + volt_step * 0.95, volt_step]
     rever_vars = [volt_end, volt_begin - volt_step * 0.95, -volt_step]
