@@ -117,12 +117,12 @@ class MainWindow(QtWidgets.QMainWindow):
             for r in range(8):
                 self.relays.append(self.relaycard.relays[r])
         except:
-            self.is_relay = False
             ports = serial.tools.list_ports.comports()
 
-            for port, desc, hwid in sorted(ports):
-                print("{}: {} [{}]".format(port, desc, hwid))
-                print("relay not found")
+            # for port, desc, hwid in sorted(ports):
+            #     print("{}: {} [{}]".format(port, desc, hwid))
+            self.is_relay = False
+            print("relay not found")
 
 
         try:
@@ -667,7 +667,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.create_folder(False)
         self.gather_all_metadata()
         metadata = pd.DataFrame.from_dict(self.meta_dict, orient='index')
-        metadata.to_csv(self.folder + "metadata.txt", header=False, sep=",")
+        metadata.to_csv(self.folder + "metadata.txt", header=False, sep="\t")
         self.statusBar().showMessage("Metadata file saved successfully", 5000)
 
     def load_meta(self):
@@ -847,11 +847,11 @@ class MainWindow(QtWidgets.QMainWindow):
         empty = pd.DataFrame(data={"": ["--"]})
         filename = self.check_filename("jv")
         # print("  " + filename)
-        metadata.to_csv(filename, index=True, header=False, sep=",")
-        empty.to_csv(filename, mode="a", index=False, header=False, lineterminator='\n', sep=",")
-        self.jv_chars_results.T.to_csv(filename, mode="a", index=True, header=True, sep=",")
-        empty.to_csv(filename, mode="a", index=False, header=False, lineterminator='\n', sep=",")
-        self.curr_volt_results.to_csv(filename, mode="a", index=False, header=True, sep=",")
+        metadata.to_csv(filename, index=True, header=False, sep="\t")
+        empty.to_csv(filename, mode="a", index=False, header=False, lineterminator='\n', sep="\t")
+        self.jv_chars_results.T.to_csv(filename, mode="a", index=True, header=True, sep="\t")
+        empty.to_csv(filename, mode="a", index=False, header=False, lineterminator='\n', sep="\t")
+        self.curr_volt_results.to_csv(filename, mode="a", index=False, header=True, sep="\t")
         self.statusBar().showMessage("Data saved successfully", 5000)
 
     def save_mpp(self):
@@ -863,8 +863,8 @@ class MainWindow(QtWidgets.QMainWindow):
 
         filename = self.check_filename("mpp")
 
-        metadata.to_csv(filename, header=False, sep=",")
-        mpp_data.to_csv(filename, mode="a", index=False, sep=",")
+        metadata.to_csv(filename, header=False, sep="\t")
+        mpp_data.to_csv(filename, mode="a", index=False, sep="\t")
 
         self.statusBar().showMessage("Data saved successfully", 5000)
 
@@ -1088,7 +1088,7 @@ class MainWindow(QtWidgets.QMainWindow):
         except:
             df = pd.DataFrame(columns=["Date", "Lamp Power(%)"])
             df = self.log_susi_newinput(90.5, df)
-            df.to_csv(logpath, index=False, sep=",")
+            df.to_csv(logpath, index=False, sep="\t")
 
         intensity = df["Lamp Power(%)"].iloc[-1]
         self.susi_percentage = intensity
@@ -1100,7 +1100,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
         df = pd.read_csv(logpath, index_col=None)
         df = self.log_susi_newinput(intensity, df)
-        df.to_csv(logpath, index=False, sep=",")
+        df.to_csv(logpath, index=False, sep="\t")
 
         return intensity
 
@@ -1230,34 +1230,37 @@ class MainWindow(QtWidgets.QMainWindow):
             cell_name = [""]
 
         for cn, cell in enumerate(cell_list):
-            if cell.isChecked() or not self.is_multiplex:
-                for n, mpr in enumerate(meas_process):
+
+            for n, mpr in enumerate(meas_process):
+                if cell.isChecked() and self.is_multiplex:
                     self.relays[cn].on()
-                    self.is_first_plot = True
-                    if "D" in mpr:  # if it is a dark measurement
-                        self.susi_shutter_close()
-                        ilum = "Dark"
-                    else:
-                        self.susi_shutter_open()
-                        ilum = "Light"
 
-                    if "F" in mpr:  # if it is forward
-                        direc = "Forward"
-                        all_vars = forwa_vars + fixed_vars + [ilum + direc]
-                    else:
-                        direc = "Reverse"
-                        all_vars = rever_vars + fixed_vars + [ilum + direc]
+                self.is_first_plot = True
+                if "D" in mpr:  # if it is a dark measurement
+                    self.susi_shutter_close()
+                    ilum = "Dark"
+                else:
+                    self.susi_shutter_open()
+                    ilum = "Light"
 
-                    # print(all_vars)
-                    volt, curr = self.curr_volt_measurement(all_vars, cn)
+                if "F" in mpr:  # if it is forward
+                    direc = "Forward"
+                    all_vars = forwa_vars + fixed_vars + [ilum + direc]
+                else:
+                    direc = "Reverse"
+                    all_vars = rever_vars + fixed_vars + [ilum + direc]
 
-                    if self.is_meas_live:
-                        chars = self.jv_chars_calculation(volt, curr)
-                        self.jv_chars_results[cell_name[cn] + "_" + direc + "_" + ilum] = chars
-                        self.jv_char_qtabledisplay()
-                    self.curr_volt_results["Voltage (V)_" + cell_name[cn] + "_" + direc + "_" + ilum] = volt
-                    self.curr_volt_results["Current Density(mA/cm²)_" + cell_name[cn] + "_" + direc + "_" + ilum] = curr
+                # print(all_vars)
+                volt, curr = self.curr_volt_measurement(all_vars, cn)
 
+                if self.is_meas_live:
+                    chars = self.jv_chars_calculation(volt, curr)
+                    self.jv_chars_results[cell_name[cn] + "_" + direc + "_" + ilum] = chars
+                    self.jv_char_qtabledisplay()
+                self.curr_volt_results["Voltage (V)_" + cell_name[cn] + "_" + direc + "_" + ilum] = volt
+                self.curr_volt_results["Current Density(mA/cm²)_" + cell_name[cn] + "_" + direc + "_" + ilum] = curr
+
+                if cell.isChecked() and self.is_multiplex:
                     self.relays[cn].off()
 
 
