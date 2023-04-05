@@ -901,7 +901,29 @@ class MainWindow(QtWidgets.QMainWindow):
     def recipe_measurement(self,text):
         # TODO make a recipe
         self.is_recipe = True
+        self.recipe_list = list(text.split(",")) #TODO make it fool proof
+        self.is_meas_live = True
+
+        self.create_folder(False)
+        self.dis_enable_widgets(True, "jv")
+        self.statusBar().showMessage("Measuring Recipe of "+str(len(self.recipe_list))+" steps: "+text)
+        self.keithley.enable_source()
+        self.fix_data_and_send_to_measure()
+        try:
+            self.fix_jv_chars_for_save()
+            self.vmpp_value_to_tracking()
+            self.save_data()
+        except:
+            pass
+
+        self.susi_shutter_close()
+        self.keithley.disable_source()
+        self.dis_enable_widgets(False, "jv")
+        self.popup_message("Recipe measurement done")
+        self.is_recipe = False
         print(text)
+
+
 
 
     def jv_chars_calculation(self, volt, curr):
@@ -1204,17 +1226,19 @@ class MainWindow(QtWidgets.QMainWindow):
 
         if self.is_recipe:
             meas_process = self.recipe_list
+            # rep_count = 0
+
         else:
             check_box_buttons = [self.for_bmD, self.rev_bmD, self.for_bmL, self.rev_bmL]
 
             meas_process = []
-            for n, cbb in enumerate(check_box_buttons):
+            for ck, cbb in enumerate(check_box_buttons):
                 if cbb.isChecked():
-                    if n == 0:
+                    if ck == 0:
                         meas_process.append("FD")
-                    elif n == 1:
+                    elif ck == 1:
                         meas_process.append("RD")
-                    elif n == 2:
+                    elif ck == 2:
                         meas_process.append("FL")
                     else:
                         meas_process.append("RL")
@@ -1229,39 +1253,52 @@ class MainWindow(QtWidgets.QMainWindow):
             cell_list = [self.cell_g]
             cell_name = [""]
 
-        for cn, cell in enumerate(cell_list):
-
-            for n, mpr in enumerate(meas_process):
-                if cell.isChecked() and self.is_multiplex:
+        if self.is_multiplex:
+            for cn, cell in enumerate(cell_list):
+                if cell.isChecked():
                     self.relays[cn].on()
+                    self.measurement_steps(meas_process,forwa_vars,rever_vars,fixed_vars, cell_name, cn,cell)
+        else:
+            self.measurement_steps(meas_process,forwa_vars,rever_vars,fixed_vars, cell_name)
+    def measurement_steps(self, meas_process,forwa_vars,rever_vars,fixed_vars, cell_name, cn=0,cell=""):
+        for ck, mpr in enumerate(meas_process):
+            # print(mpr)
+            self.is_first_plot = True
+            if "D" in mpr:  # if it is a dark measurement
+                self.susi_shutter_close()
+                ilum = "Dark"
+            else:
+                self.susi_shutter_open()
+                ilum = "Light"
 
-                self.is_first_plot = True
-                if "D" in mpr:  # if it is a dark measurement
-                    self.susi_shutter_close()
-                    ilum = "Dark"
+            if "F" in mpr:  # if it is forward
+                direc = "Forward"
+                all_vars = forwa_vars + fixed_vars + [ilum + direc]
+            else:
+                direc = "Reverse"
+                all_vars = rever_vars + fixed_vars + [ilum + direc]
+
+            # print(all_vars)
+            volt, curr = self.curr_volt_measurement(all_vars, cn)
+
+            if self.is_recipe:
+                if not self.is_multiplex:
+                    m_name = str(ck)
                 else:
-                    self.susi_shutter_open()
-                    ilum = "Light"
+                    m_name = cell_name[cn] + "-" + str(ck)
+                # rep_count += 1
+            else:
+                m_name = cell_name[cn]
 
-                if "F" in mpr:  # if it is forward
-                    direc = "Forward"
-                    all_vars = forwa_vars + fixed_vars + [ilum + direc]
-                else:
-                    direc = "Reverse"
-                    all_vars = rever_vars + fixed_vars + [ilum + direc]
+            if self.is_meas_live:
+                chars = self.jv_chars_calculation(volt, curr)
+                self.jv_chars_results[m_name + "_" + direc + "_" + ilum] = chars
+                self.jv_char_qtabledisplay()
+            self.curr_volt_results["Voltage (V)_" + m_name + "_" + direc + "_" + ilum] = volt
+            self.curr_volt_results["Current Density(mA/cm²)_" + m_name + "_" + direc + "_" + ilum] = curr
 
-                # print(all_vars)
-                volt, curr = self.curr_volt_measurement(all_vars, cn)
-
-                if self.is_meas_live:
-                    chars = self.jv_chars_calculation(volt, curr)
-                    self.jv_chars_results[cell_name[cn] + "_" + direc + "_" + ilum] = chars
-                    self.jv_char_qtabledisplay()
-                self.curr_volt_results["Voltage (V)_" + cell_name[cn] + "_" + direc + "_" + ilum] = volt
-                self.curr_volt_results["Current Density(mA/cm²)_" + cell_name[cn] + "_" + direc + "_" + ilum] = curr
-
-                if cell.isChecked() and self.is_multiplex:
-                    self.relays[cn].off()
+            if self.is_multiplex:
+                self.relays[cn].off()
 
 
     def display_live_voltage(self, value, live=True):
