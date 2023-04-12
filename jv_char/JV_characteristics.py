@@ -528,16 +528,19 @@ class MainWindow(QtWidgets.QMainWindow):
         self.BloadM = QToolButton()
         self.Bsusi_intensity = QToolButton()
         self.Bsusi_off = QToolButton()
+        self.Bsusi_on = QToolButton()
         self.Brecipe = QToolButton()
         self.BsaveM.setText("Save")
         self.BloadM.setText("Load")
         self.Bsusi_intensity.setText("Set")
         self.Bsusi_off.setText("Off")
+        self.Bsusi_on.setText("On")
         self.Brecipe.setText("Recipe")
         self.BsaveM.setMaximumWidth(40)
         self.BloadM.setMaximumWidth(40)
         self.Bsusi_intensity.setMaximumWidth(40)
         self.Bsusi_off.setMaximumWidth(40)
+        self.Bsusi_on.setMaximumWidth(40)
 
         LextraButtons.addWidget(QLabel(""), 0, 0)
         LextraButtons.addWidget(QLabel("Metadata:"), 0, 1)
@@ -546,6 +549,7 @@ class MainWindow(QtWidgets.QMainWindow):
         LextraButtons.addWidget(self.BsaveM, 0, 2)
         LextraButtons.addWidget(self.BloadM, 0, 3)
         LextraButtons.addWidget(self.Bsusi_intensity, 1, 3)
+        LextraButtons.addWidget(self.Bsusi_on, 2, 2)
         LextraButtons.addWidget(self.Bsusi_off, 2, 3)
         LextraButtons.addWidget(self.Brecipe, 3, 3)
 
@@ -597,6 +601,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.logyaxis.stateChanged.connect(self.yaxis_to_log)
         self.four_wire.stateChanged.connect(self.two_four_wires_measurement)
         self.Bsusi_off.clicked.connect(self.susi_shutdown)
+        self.Bsusi_on.clicked.connect(self.susi_startup)
         self.Brecipe.clicked.connect(self.recipe_popup)
         self.multiplex.stateChanged.connect(self.multiplexing_allow)
 
@@ -750,7 +755,7 @@ class MainWindow(QtWidgets.QMainWindow):
             for f in fields:
                 f.setEnabled(False)
     def disable_susi(self):
-        wi_dis = [self.susiShutter, self.for_bmD, self.rev_bmD, self.Bsusi_intensity, self.Bsusi_off]
+        wi_dis = [self.susiShutter, self.for_bmD, self.rev_bmD, self.Bsusi_intensity, self.Bsusi_off, self.Bsusi_on]
 
         for wd in wi_dis:
             wd.setEnabled(False)
@@ -922,8 +927,6 @@ class MainWindow(QtWidgets.QMainWindow):
         self.popup_message("Recipe measurement done")
         self.is_recipe = False
         print(text)
-
-
 
 
     def jv_chars_calculation(self, volt, curr):
@@ -1226,7 +1229,6 @@ class MainWindow(QtWidgets.QMainWindow):
 
         if self.is_recipe:
             meas_process = self.recipe_list
-            # rep_count = 0
 
         else:
             check_box_buttons = [self.for_bmD, self.rev_bmD, self.for_bmL, self.rev_bmL]
@@ -1372,7 +1374,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def jv_process(self):
         # Reset values
-        if self.is_meas_live:
+        while self.is_meas_live:
             self.create_folder(False)
             self.dis_enable_widgets(True, "jv")
             self.statusBar().showMessage("Measuring JV curve")
@@ -1402,7 +1404,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def mpp_process(self):
         self.keithley_startup_setup()
-        if self.is_meas_live:
+        while self.is_meas_live:
             self.susi_shutter_open()
             self.reset_plot_mpp()
             self.create_folder(False)
