@@ -1254,53 +1254,54 @@ class MainWindow(QtWidgets.QMainWindow):
         else:
             cell_list = [self.cell_g]
             cell_name = [""]
-
-        if self.is_multiplex:
-            for cn, cell in enumerate(cell_list):
-                if cell.isChecked():
-                    self.relays[cn].on()
-                    self.measurement_steps(meas_process,forwa_vars,rever_vars,fixed_vars, cell_name, cn,cell)
-        else:
-            self.measurement_steps(meas_process,forwa_vars,rever_vars,fixed_vars, cell_name)
-    def measurement_steps(self, meas_process,forwa_vars,rever_vars,fixed_vars, cell_name, cn=0,cell=""):
-        for ck, mpr in enumerate(meas_process):
-            # print(mpr)
-            self.is_first_plot = True
-            if "D" in mpr:  # if it is a dark measurement
-                self.susi_shutter_close()
-                ilum = "Dark"
-            else:
-                self.susi_shutter_open()
-                ilum = "Light"
-
-            if "F" in mpr:  # if it is forward
-                direc = "Forward"
-                all_vars = forwa_vars + fixed_vars + [ilum + direc]
-            else:
-                direc = "Reverse"
-                all_vars = rever_vars + fixed_vars + [ilum + direc]
-
-            # print(all_vars)
-            volt, curr = self.curr_volt_measurement(all_vars, cn)
-
-            if self.is_recipe:
-                if not self.is_multiplex:
-                    m_name = str(ck)
-                else:
-                    m_name = cell_name[cn] + "-" + str(ck)
-                # rep_count += 1
-            else:
-                m_name = cell_name[cn]
-
-            if self.is_meas_live:
-                chars = self.jv_chars_calculation(volt, curr)
-                self.jv_chars_results[m_name + "_" + direc + "_" + ilum] = chars
-                self.jv_char_qtabledisplay()
-            self.curr_volt_results["Voltage (V)_" + m_name + "_" + direc + "_" + ilum] = volt
-            self.curr_volt_results["Current Density(mA/cm²)_" + m_name + "_" + direc + "_" + ilum] = curr
-
+        while self.is_meas_live:
             if self.is_multiplex:
-                self.relays[cn].off()
+                for cn, cell in enumerate(cell_list):
+                    if cell.isChecked():
+                        self.relays[cn].on()
+                        self.measurement_steps(meas_process,forwa_vars,rever_vars,fixed_vars, cell_name, cn,cell)
+            else:
+                self.measurement_steps(meas_process,forwa_vars,rever_vars,fixed_vars, cell_name)
+    def measurement_steps(self, meas_process,forwa_vars,rever_vars,fixed_vars, cell_name, cn=0,cell=""):
+        while self.is_meas_live:
+            for ck, mpr in enumerate(meas_process):
+                # print(mpr)
+                self.is_first_plot = True
+                if "D" in mpr:  # if it is a dark measurement
+                    self.susi_shutter_close()
+                    ilum = "Dark"
+                else:
+                    self.susi_shutter_open()
+                    ilum = "Light"
+
+                if "F" in mpr:  # if it is forward
+                    direc = "Forward"
+                    all_vars = forwa_vars + fixed_vars + [ilum + direc]
+                else:
+                    direc = "Reverse"
+                    all_vars = rever_vars + fixed_vars + [ilum + direc]
+
+                # print(all_vars)
+                volt, curr = self.curr_volt_measurement(all_vars, cn)
+
+                if self.is_recipe:
+                    if not self.is_multiplex:
+                        m_name = str(ck)
+                    else:
+                        m_name = cell_name[cn] + "-" + str(ck)
+                    # rep_count += 1
+                else:
+                    m_name = cell_name[cn]
+
+                if self.is_meas_live:
+                    chars = self.jv_chars_calculation(volt, curr)
+                    self.jv_chars_results[m_name + "_" + direc + "_" + ilum] = chars
+                    self.jv_char_qtabledisplay()
+                self.curr_volt_results["Voltage (V)_" + m_name + "_" + direc + "_" + ilum] = volt
+                self.curr_volt_results["Current Density(mA/cm²)_" + m_name + "_" + direc + "_" + ilum] = curr
+
+                if self.is_multiplex:
+                    self.relays[cn].off()
 
 
     def display_live_voltage(self, value, live=True):
