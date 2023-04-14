@@ -146,6 +146,8 @@ class MainWindow(QtWidgets.QMainWindow):
             self.susi.stopbits = 1
             self.susi.timeout = 5
             self.is_susi = True
+            self.is_shutter_open = False
+
 
         except:
             self.is_susi = False
@@ -1172,6 +1174,7 @@ class MainWindow(QtWidgets.QMainWindow):
         intensity = int(intensity * 10)
         value = "{:04d}".format(intensity)
         message = "P=" + value
+        print(message)
 
         self.susi.write(message.encode('utf-8'))  # Set light intensity
 
@@ -1198,12 +1201,14 @@ class MainWindow(QtWidgets.QMainWindow):
             self.susi.write(b'S0')  # Shutter Open
             self.susiShutter.setText("SuSi Shutter (Opened)")
             QtTest.QTest.qWait(int(3 * 1000))
+            self.is_shutter_open = True
 
     def susi_shutter_close(self):
         if self.is_susi:
             self.susi.write(b'S1')  # Shutter Closed
             self.susiShutter.setText("SuSi Shutter (Closed)")
             QtTest.QTest.qWait(int(3 * 1000))
+            self.is_shutter_open = False
 
     def namestr(self, obj, namespace):
         return [name for name in namespace if namespace[name] is obj]
@@ -1259,49 +1264,57 @@ class MainWindow(QtWidgets.QMainWindow):
                 for cn, cell in enumerate(cell_list):
                     if cell.isChecked():
                         self.relays[cn].on()
+                        print("on ",cn,cell)
                         self.measurement_steps(meas_process,forwa_vars,rever_vars,fixed_vars, cell_name, cn,cell)
+                        self.relays[cn].off()
+                        print("off ",cn, cell)
+
             else:
                 self.measurement_steps(meas_process,forwa_vars,rever_vars,fixed_vars, cell_name)
+
+            self.is_meas_live = False
     def measurement_steps(self, meas_process,forwa_vars,rever_vars,fixed_vars, cell_name, cn=0,cell=""):
-        while self.is_meas_live:
-            for ck, mpr in enumerate(meas_process):
-                # print(mpr)
-                self.is_first_plot = True
-                if "D" in mpr:  # if it is a dark measurement
+        # while self.is_meas_live:
+        for ck, mpr in enumerate(meas_process):
+            # print(mpr)
+            self.is_first_plot = True
+            if "D" in mpr:  # if it is a dark measurement
+                if self.is_shutter_open:
                     self.susi_shutter_close()
-                    ilum = "Dark"
-                else:
+                ilum = "Dark"
+            else:
+                if not self.is_shutter_open:
                     self.susi_shutter_open()
-                    ilum = "Light"
+                ilum = "Light"
 
-                if "F" in mpr:  # if it is forward
-                    direc = "Forward"
-                    all_vars = forwa_vars + fixed_vars + [ilum + direc]
+            if "F" in mpr:  # if it is forward
+                direc = "Forward"
+                all_vars = forwa_vars + fixed_vars + [ilum + direc]
+            else:
+                direc = "Reverse"
+                all_vars = rever_vars + fixed_vars + [ilum + direc]
+
+            # print(all_vars)
+            volt, curr = self.curr_volt_measurement(all_vars, cn)
+
+            if self.is_recipe:
+                if not self.is_multiplex:
+                    m_name = str(ck)
                 else:
-                    direc = "Reverse"
-                    all_vars = rever_vars + fixed_vars + [ilum + direc]
+                    m_name = cell_name[cn] + "-" + str(ck)
+                # rep_count += 1
+            else:
+                m_name = cell_name[cn]
 
-                # print(all_vars)
-                volt, curr = self.curr_volt_measurement(all_vars, cn)
+            if self.is_meas_live:
+                chars = self.jv_chars_calculation(volt, curr)
+                self.jv_chars_results[m_name + "_" + direc + "_" + ilum] = chars
+                self.jv_char_qtabledisplay()
+            self.curr_volt_results["Voltage (V)_" + m_name + "_" + direc + "_" + ilum] = volt
+            self.curr_volt_results["Current Density(mA/cm²)_" + m_name + "_" + direc + "_" + ilum] = curr
 
-                if self.is_recipe:
-                    if not self.is_multiplex:
-                        m_name = str(ck)
-                    else:
-                        m_name = cell_name[cn] + "-" + str(ck)
-                    # rep_count += 1
-                else:
-                    m_name = cell_name[cn]
-
-                if self.is_meas_live:
-                    chars = self.jv_chars_calculation(volt, curr)
-                    self.jv_chars_results[m_name + "_" + direc + "_" + ilum] = chars
-                    self.jv_char_qtabledisplay()
-                self.curr_volt_results["Voltage (V)_" + m_name + "_" + direc + "_" + ilum] = volt
-                self.curr_volt_results["Current Density(mA/cm²)_" + m_name + "_" + direc + "_" + ilum] = curr
-
-                if self.is_multiplex:
-                    self.relays[cn].off()
+            # if self.is_multiplex:
+            #     self.relays[cn].off()
 
 
     def display_live_voltage(self, value, live=True):
