@@ -34,6 +34,7 @@ class TableModel(QAbstractTableModel):
     def __init__(self, data):
         super(TableModel, self).__init__()
         self._data = data
+        self.highlight_row = self._data["PCE"].idxmax()
 
     def data(self, index, role):
         if role == Qt.DisplayRole:
@@ -57,6 +58,10 @@ class TableModel(QAbstractTableModel):
 
             # Default (anything not captured above: e.g. int)
             return value
+
+        if role == Qt.BackgroundRole:
+            if index.row() == self.highlight_row:
+                return QColor(Qt.yellow)
 
     def rowCount(self, index):
         return self._data.shape[0]
