@@ -8,7 +8,7 @@ from PyQt5.QtWidgets import QWidget, QLineEdit, QFormLayout, QHBoxLayout, QVBoxL
 from PyQt5.QtWidgets import QFrame, QPushButton, QCheckBox, QLabel, QToolButton, QTextEdit, QPlainTextEdit
 from PyQt5.QtWidgets import QSizePolicy, QMessageBox, QDialog,QInputDialog
 from PyQt5.QtCore import QThreadPool
-from PyQt5.QtGui import QFont
+from PyQt5.QtGui import QFont, QColor
 from PyQt5.QtWidgets import QTableView
 from PyQt5.QtCore import QAbstractTableModel, Qt
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg, NavigationToolbar2QT as NavigationToolbar
@@ -34,7 +34,10 @@ class TableModel(QAbstractTableModel):
     def __init__(self, data):
         super(TableModel, self).__init__()
         self._data = data
-        self.highlight_row = self._data["PCE"].idxmax()
+        self.highlight_row = ""
+        if self._data.shape[0] > 1 and self._data["PCE\n(%)"].max != 0:
+            self.highlight_row = self._data.index.get_loc(self._data["PCE\n(%)"].astype("float").idxmax())
+            # print(self.highlight_row)
 
     def data(self, index, role):
         if role == Qt.DisplayRole:
@@ -59,8 +62,9 @@ class TableModel(QAbstractTableModel):
             # Default (anything not captured above: e.g. int)
             return value
 
-        if role == Qt.BackgroundRole:
+        if role == Qt.BackgroundRole and self.highlight_row != "":
             if index.row() == self.highlight_row:
+                print("highlighted")
                 return QColor(Qt.yellow)
 
     def rowCount(self, index):
@@ -188,6 +192,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.is_meas_live = False
         self.is_first_plot = True
         self.is_recipe = False
+        self.is_mpp_bool = False
         # Add a toolbar to control plotting area
         toolbar = NavigationToolbar(self.canvas, self)
 
@@ -281,7 +286,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.int_time.setText("0.1")
         self.set_time.setText("0.1")
         self.curr_lim.setText("300")
-        self.sam_area.setText("0.16")
+        self.sam_area.setText("1.0")
         self.pow_dens.setText("100")
         # self.sun_ref.setText("74")
         # self.cell_num.setText("1")#module
@@ -639,6 +644,8 @@ class MainWindow(QtWidgets.QMainWindow):
 
         if len(user) > 0:
             newfolder = folder + user + "/" + date + "/"
+        elif folder[-1] != "/":
+            newfolder = folder + "/" + date + "/"
         else:
             newfolder = folder + date
 
@@ -686,7 +693,7 @@ class MainWindow(QtWidgets.QMainWindow):
         folder = self.LEfolder.text()
         metafile = QtWidgets.QFileDialog.getOpenFileName(self, "Choose your metadata file", folder)
         if metafile:
-            metadata = pd.read_csv(metafile[0], header=None, index_col=0, nrows=21)
+            metadata = pd.read_csv(metafile[0], header=None, delimiter="\t", index_col=0, nrows=21)
             # print(metadata)
             labels = self.setup_labs_jv + self.exp_labels
             objects = self.setup_vals_jv + self.exp_vars
@@ -757,10 +764,12 @@ class MainWindow(QtWidgets.QMainWindow):
             self.is_multiplex = True
             for f in fields:
                 f.setEnabled(True)
+                self.sam_area.setEnabled(False)
         else:
             self.is_multiplex = False
             for f in fields:
                 f.setEnabled(False)
+                self.sam_area.setEnabled(True)
     def disable_susi(self):
         wi_dis = [self.susiShutter, self.for_bmD, self.rev_bmD, self.Bsusi_intensity, self.Bsusi_off, self.Bsusi_on]
 
@@ -859,12 +868,21 @@ class MainWindow(QtWidgets.QMainWindow):
         empty = pd.DataFrame(data={"": ["--"]})
         filename = self.check_filename("jv")
         # print("  " + filename)
-        metadata.to_csv(filename, index=True, header=False, sep="\t")
-        empty.to_csv(filename, mode="a", index=False, header=False, lineterminator='\n', sep="\t")
-        self.jv_chars_results.T.to_csv(filename, mode="a", index=True, header=True, sep="\t")
-        empty.to_csv(filename, mode="a", index=False, header=False, lineterminator='\n', sep="\t")
-        self.curr_volt_results.to_csv(filename, mode="a", index=False, header=True, sep="\t")
-        self.statusBar().showMessage("Data saved successfully", 5000)
+        try:
+            metadata.to_csv(filename, index=True, header=False, sep="\t")
+            empty.to_csv(filename, mode="a", index=False, header=False, lineterminator='\n', sep="\t")
+        except:
+            pass
+        try:
+            self.jv_chars_results.T.to_csv(filename, mode="a", index=True, header=True, sep="\t")
+            empty.to_csv(filename, mode="a", index=False, header=False, lineterminator='\n', sep="\t")
+        except:
+            pass
+        try:
+            self.curr_volt_results.to_csv(filename, mode="a", index=False, header=True, sep="\t")
+        except:
+            pass
+        self.statusBar().showMessage("Data saved successfully to " + filename)
 
     def save_mpp(self):
         self.is_mpp_bool = True
@@ -923,7 +941,10 @@ class MainWindow(QtWidgets.QMainWindow):
         self.fix_data_and_send_to_measure()
         try:
             self.fix_jv_chars_for_save()
-            self.vmpp_value_to_tracking()
+            try: #TODO change this to boolean
+                self.vmpp_value_to_tracking()
+            except:
+                pass
             self.save_data()
         except:
             pass
@@ -1179,7 +1200,7 @@ class MainWindow(QtWidgets.QMainWindow):
         intensity = int(intensity * 10)
         value = "{:04d}".format(intensity)
         message = "P=" + value
-        print(message)
+        # print(message)
 
         self.susi.write(message.encode('utf-8'))  # Set light intensity
 
@@ -1269,15 +1290,27 @@ class MainWindow(QtWidgets.QMainWindow):
                 for cn, cell in enumerate(cell_list):
                     if cell.isChecked():
                         self.relays[cn].on()
-                        print("on ",cn,cell)
+                        # print("on ",cn,cell)
                         self.measurement_steps(meas_process,forwa_vars,rever_vars,fixed_vars, cell_name, cn,cell)
                         self.relays[cn].off()
-                        print("off ",cn, cell)
+                        # print("off ",cn, cell)
 
             else:
                 self.measurement_steps(meas_process,forwa_vars,rever_vars,fixed_vars, cell_name)
 
             self.is_meas_live = False
+
+    def get_areas(self): #TODO areas
+        if self.is_multiplex:
+            area = []
+            multi = [self.area_a,self.area_b,self.area_c,self.area_d,self.area_e,self.area_f]
+
+            for m in multi:
+                area.append(float(m.text()))
+        else:
+            area = float(self.sam_area.text())
+
+
     def measurement_steps(self, meas_process,forwa_vars,rever_vars,fixed_vars, cell_name, cn=0,cell=""):
         # while self.is_meas_live:
         for ck, mpr in enumerate(meas_process):
@@ -1401,7 +1434,10 @@ class MainWindow(QtWidgets.QMainWindow):
             self.fix_data_and_send_to_measure()
             try:
                 self.fix_jv_chars_for_save()
-                self.vmpp_value_to_tracking()
+                try: #TODO change this to boolean
+                    self.vmpp_value_to_tracking()
+                except:
+                    pass
                 self.save_data()
             except:
                 pass
@@ -1409,7 +1445,7 @@ class MainWindow(QtWidgets.QMainWindow):
             self.susi_shutter_close()
             self.keithley.disable_source()
             self.dis_enable_widgets(False, "jv")
-            self.popup_message("JV measurement done")
+            # self.popup_message("JV measurement done")
 
 
     def mpp_start_stop(self):
@@ -1650,7 +1686,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.canvas.axes.legend(fontsize="8")
 
         volt, curr = self.collect_all_values_iv(voltage, current)
-        self.center_plot(volt, curr)
+        self.center_plot(voltage, current)
 
         # Draw plot
         self.canvas.draw_idle()
