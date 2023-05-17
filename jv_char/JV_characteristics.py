@@ -64,7 +64,7 @@ class TableModel(QAbstractTableModel):
 
         if role == Qt.BackgroundRole and self.highlight_row != "":
             if index.row() == self.highlight_row:
-                print("highlighted")
+                # print("highlighted")
                 return QColor(Qt.yellow)
 
     def rowCount(self, index):
@@ -140,7 +140,7 @@ class MainWindow(QtWidgets.QMainWindow):
             print(rm.list_resources())
             device = rm.list_resources()[0]  # Get the first keithley on the list
             self.keithley = Keithley2450(device)
-            self.keithley.wires = 4
+            self.keithley.wires = 2
         except:
             device = None
             self.keithley = None
@@ -929,7 +929,6 @@ class MainWindow(QtWidgets.QMainWindow):
 
 
     def recipe_measurement(self,text):
-        # TODO make a recipe
         self.is_recipe = True
         self.recipe_list = list(text.split(",")) #TODO make it fool proof
         self.is_meas_live = True
@@ -1137,7 +1136,7 @@ class MainWindow(QtWidgets.QMainWindow):
         logpath = "C:\\Data\\susi_log.txt"
 
         try:
-            df = pd.read_csv(logpath, index_col=None)
+            df = pd.read_csv(logpath, index_col=None, delimiter="\t")
         except:
             df = pd.DataFrame(columns=["Date", "Lamp Power(%)"])
             df = self.log_susi_newinput(90.5, df)
@@ -1242,7 +1241,7 @@ class MainWindow(QtWidgets.QMainWindow):
     def fix_data_and_send_to_measure(self):
         self.reset_plot_jv()
 
-        area = float(self.sam_area.text())
+        # area = float(self.sam_area.text())
         volt_begin = float(self.volt_start.text())
         volt_end = float(self.volt_end.text())
         volt_step = float(self.volt_step.text())
@@ -1256,7 +1255,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
         forwa_vars = [volt_begin, volt_end + volt_step * 0.95, volt_step]
         rever_vars = [volt_end, volt_begin - volt_step * 0.95, -volt_step]
-        fixed_vars = [time, ap, area]
+        fixed_vars = [time, ap]#, area]
 
         if self.is_recipe:
             meas_process = self.recipe_list
@@ -1279,6 +1278,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self.jv_chars_results = pd.DataFrame()
         self.curr_volt_results = pd.DataFrame()
 
+        area = self.get_areas()
+
         if self.is_multiplex:
             cell_list = [self.cell_a,self.cell_b,self.cell_c,self.cell_d,self.cell_e,self.cell_f]
             cell_name = ["a","b","c","d","e","f"]
@@ -1288,19 +1289,26 @@ class MainWindow(QtWidgets.QMainWindow):
         while self.is_meas_live:
             if self.is_multiplex:
                 for cn, cell in enumerate(cell_list):
+                    try:
+                        fixed_vars[2] = float(area[cn])
+                    except:
+                        fixed_vars.append(float(area[cn]))
+
                     if cell.isChecked():
                         self.relays[cn].on()
                         # print("on ",cn,cell)
-                        self.measurement_steps(meas_process,forwa_vars,rever_vars,fixed_vars, cell_name, cn,cell)
+                        print(fixed_vars)
+                        self.measurement_steps(meas_process,forwa_vars,rever_vars,fixed_vars, cell_name, cn, cell)
                         self.relays[cn].off()
                         # print("off ",cn, cell)
 
             else:
+                fixed_vars.append(float(area))
                 self.measurement_steps(meas_process,forwa_vars,rever_vars,fixed_vars, cell_name)
 
             self.is_meas_live = False
 
-    def get_areas(self): #TODO areas
+    def get_areas(self): #TODO add areas to metadata
         if self.is_multiplex:
             area = []
             multi = [self.area_a,self.area_b,self.area_c,self.area_d,self.area_e,self.area_f]
@@ -1309,6 +1317,8 @@ class MainWindow(QtWidgets.QMainWindow):
                 area.append(float(m.text()))
         else:
             area = float(self.sam_area.text())
+
+        return area
 
 
     def measurement_steps(self, meas_process,forwa_vars,rever_vars,fixed_vars, cell_name, cn=0,cell=""):
@@ -1332,7 +1342,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 direc = "Reverse"
                 all_vars = rever_vars + fixed_vars + [ilum + direc]
 
-            # print(all_vars)
+            print(all_vars)
             volt, curr = self.curr_volt_measurement(all_vars, cn)
 
             if self.is_recipe:
@@ -1473,12 +1483,13 @@ class MainWindow(QtWidgets.QMainWindow):
             self.dis_enable_widgets(False, "mpp")
 
     def curr_volt_tracking(self):
-        area = float(self.sam_area.text())
+        # area = float(self.sam_area.text())
 
         mpp_total_time = float(self.mpp_ttime.text()) * 60
         mpp_int_time = float(self.mpp_inttime.text())
         mpp_step = float(self.mpp_stepSize.text())
         mpp_voltage = float(self.mpp_voltage.text())
+        area = self.get_areas()
 
         self.statusBar().showMessage("Tracking Maximum Power Point")
 
@@ -1491,6 +1502,12 @@ class MainWindow(QtWidgets.QMainWindow):
         max_voltage = mpp_voltage
         time_c = time()
 
+        if self.is_multiplex:
+            cell_list = [self.cell_a, self.cell_b, self.cell_c, self.cell_d, self.cell_e, self.cell_f]
+            cell_name = ["a", "b", "c", "d", "e", "f"]
+        else:
+            cell_list = [self.cell_g]
+            cell_name = [""]
         # TODO mpp cell choose
         for i in np.arange(0, mpp_total_time / 3, mpp_int_time / 1000):
             voltage_test = [max_voltage - mpp_step, max_voltage, max_voltage + mpp_step]
@@ -1499,24 +1516,32 @@ class MainWindow(QtWidgets.QMainWindow):
             mpp_test_voltage = []
             mpp_test_power = []
 
-            for v in voltage_test:
-                if self.is_meas_live:
-                    self.keithley.source_voltage = v
-                    # Wait for stabilized measurement
-                    QtTest.QTest.qWait(int(mpp_int_time))
-                    # Measure current & voltage
-                    m_current = self.keithley.current * 1000 / area
-                    m_voltage = v  # self.keithley.voltage
+            if self.is_multiplex:
+                for cn, cell in enumerate(cell_list):
 
-                    mpp_test_current.append(m_current)
-                    mpp_test_voltage.append(m_voltage)
-                    mpp_test_power.append(abs(m_voltage * m_current))
-                else:
-                    mpp_test_current.append(np.nan)
-                    mpp_test_voltage.append(np.nan)
-                    mpp_test_power.append(np.nan)
-                    break
+                    if cell.isChecked():
+                        self.relays[cn].on()
+                    for v in voltage_test:
+                        if self.is_meas_live:
 
+
+                            self.keithley.source_voltage = v
+                            # Wait for stabilized measurement
+                            QtTest.QTest.qWait(int(mpp_int_time))
+                            # Measure current & voltage
+                            m_current = self.keithley.current * 1000 / area[cn]
+                            m_voltage = v  # self.keithley.voltage
+
+                            mpp_test_current.append(m_current)
+                            mpp_test_voltage.append(m_voltage)
+                            mpp_test_power.append(abs(m_voltage * m_current))
+                        else:
+                            mpp_test_current.append(np.nan)
+                            mpp_test_voltage.append(np.nan)
+                            mpp_test_power.append(np.nan)
+                            break
+
+            self.relays[cn].off
             index_max = mpp_test_power.index(max(mpp_test_power))
             self.mpp_current.append(mpp_test_current[index_max])
             max_voltage = mpp_test_voltage[index_max]
