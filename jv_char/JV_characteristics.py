@@ -193,6 +193,9 @@ class MainWindow(QtWidgets.QMainWindow):
         self.is_first_plot = True
         self.is_recipe = False
         self.is_mpp_bool = False
+        self.is_jv_measurement = False
+        self.is_mpp_measurement = False
+
         # Add a toolbar to control plotting area
         toolbar = NavigationToolbar(self.canvas, self)
 
@@ -938,7 +941,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.dis_enable_widgets(True, "jv")
         self.statusBar().showMessage("Measuring Recipe of "+str(len(self.recipe_list))+" steps: "+text)
         self.keithley.enable_source()
-        self.fix_data_and_send_to_measure()
+        self.read_measurement_type()
         try:
             self.fix_jv_chars_for_save()
             try: #TODO change this to boolean
@@ -1239,68 +1242,57 @@ class MainWindow(QtWidgets.QMainWindow):
     def namestr(self, obj, namespace):
         return [name for name in namespace if namespace[name] is obj]
 
-    def fix_data_and_send_to_measure(self):
-        self.reset_plot_jv()
+    def read_measurement_variables(self):
+        # area = float(self.sam_area.text())
+        area = self.get_areas()
 
-        area = float(self.sam_area.text())
+        # JV variables
         volt_begin = float(self.volt_start.text())
         volt_end = float(self.volt_end.text())
         volt_step = float(self.volt_step.text())
         ap = int(self.ave_pts.text())
         time = float(self.set_time.text())
 
-        self.res_fwd_curr = []
-        self.res_fwd_volt = []
-        self.res_bkw_curr = []
-        self.res_bkw_volt = []
+        # MPP Variables
+        mpp_total_time = float(self.mpp_ttime.text()) * 60
+        mpp_int_time = float(self.mpp_inttime.text())
+        mpp_step = float(self.mpp_stepSize.text())
+        mpp_voltage = float(self.mpp_voltage.text())
 
-        forwa_vars = [volt_begin, volt_end + volt_step * 0.95, volt_step]
-        rever_vars = [volt_end, volt_begin - volt_step * 0.95, -volt_step]
-        fixed_vars = [time, ap, area]
 
-        if self.is_recipe:
-            meas_process = self.recipe_list
+        # self.jv_variables = [volt_begin, volt_end, volt_step, ap, time, area]
+        # self.mpp_variables = [mpp_total_time, mpp_int_time, mpp_step, mpp_voltage, area]
+        jv_variables = [volt_begin, volt_end, volt_step, ap, time, area]
+        mpp_variables = [mpp_total_time, mpp_int_time, mpp_step, mpp_voltage, area] # TODO area here might be problematic
 
+        # if self.is_multiplex:
+        #     cell_list = [self.cell_a,self.cell_b,self.cell_c,self.cell_d,self.cell_e,self.cell_f]
+        #     cell_name = ["a","b","c","d","e","f"]
+        # else:
+        #     cell_list = [self.cell_g]
+        #     cell_name = [""]
+
+        return jv_variables, mpp_variables
+
+    def empty_results_arrays(self):
+        if self.is_jv_measurement:
+            self.res_fwd_curr = []
+            self.res_fwd_volt = []
+            self.res_bkw_curr = []
+            self.res_bkw_volt = []
+            self.jv_chars_results = pd.DataFrame()
+            self.curr_volt_results = pd.DataFrame()
+        elif self.is_mpp_measurement:
+            self.mpp_current = []
+            self.res_mpp_voltage = []
+            self.mpp_power = []
+            self.mpp_time = []
+            self.mpp_zeit = []
         else:
-            check_box_buttons = [self.for_bmD, self.rev_bmD, self.for_bmL, self.rev_bmL]
+            pass
 
-            meas_process = []
-            for ck, cbb in enumerate(check_box_buttons):
-                if cbb.isChecked():
-                    if ck == 0:
-                        meas_process.append("FD")
-                    elif ck == 1:
-                        meas_process.append("RD")
-                    elif ck == 2:
-                        meas_process.append("FL")
-                    else:
-                        meas_process.append("RL")
 
-        self.jv_chars_results = pd.DataFrame()
-        self.curr_volt_results = pd.DataFrame()
-
-        if self.is_multiplex:
-            cell_list = [self.cell_a,self.cell_b,self.cell_c,self.cell_d,self.cell_e,self.cell_f]
-            cell_name = ["a","b","c","d","e","f"]
-        else:
-            cell_list = [self.cell_g]
-            cell_name = [""]
-        while self.is_meas_live:
-            if self.is_multiplex:
-                for cn, cell in enumerate(cell_list):
-                    if cell.isChecked():
-                        self.relays[cn].on()
-                        # print("on ",cn,cell)
-                        self.measurement_steps(meas_process,forwa_vars,rever_vars,fixed_vars, cell_name, cn,cell)
-                        self.relays[cn].off()
-                        # print("off ",cn, cell)
-
-            else:
-                self.measurement_steps(meas_process,forwa_vars,rever_vars,fixed_vars, cell_name)
-
-            self.is_meas_live = False
-
-    def get_areas(self): #TODO areas
+    def get_areas(self):
         if self.is_multiplex:
             area = []
             multi = [self.area_a,self.area_b,self.area_c,self.area_d,self.area_e,self.area_f]
@@ -1310,8 +1302,90 @@ class MainWindow(QtWidgets.QMainWindow):
         else:
             area = float(self.sam_area.text())
 
+        return area
 
-    def measurement_steps(self, meas_process,forwa_vars,rever_vars,fixed_vars, cell_name, cn=0,cell=""):
+    def read_measurement_type(self):
+        self.empty_results_arrays()
+
+        if self.is_recipe:
+            meas_process = self.recipe_list
+            self.jv_multiplex_setup(meas_process)
+        elif self.is_jv_measurement:
+            check_box_buttons = [self.rev_bmD, self.for_bmD, self.rev_bmL, self.for_bmL]
+
+            meas_process = []
+            for ck, cbb in enumerate(check_box_buttons):
+                if cbb.isChecked():
+                    if ck == 0:
+                        meas_process.append("RD")
+                    elif ck == 1:
+                        meas_process.append("FD")
+                    elif ck == 2:
+                        meas_process.append("RL")
+                    elif ck == 3:
+                        meas_process.append("FL")
+                    else:
+                        pass
+            self.jv_multiplex_setup(meas_process)
+        elif self.is_mpp_measurement:
+            self.mpp_multiplex_setup()
+        else:
+            print("no process found")
+
+    def jv_multiplex_setup(self, meas_process):
+        self.statusBar().showMessage("Measuring JV curve")
+        jv_variables, _ = self.read_measurement_variables()
+        volt_begin, volt_end, volt_step, ap, time, area = jv_variables
+
+        forwa_vars = [volt_begin, volt_end + volt_step * 0.95, volt_step]
+        rever_vars = [volt_end, volt_begin - volt_step * 0.95, -volt_step]
+        fixed_vars = [time, ap, area]
+
+        if self.is_multiplex:
+            cell_list = [self.cell_a, self.cell_b, self.cell_c, self.cell_d, self.cell_e, self.cell_f]
+            cell_name = ["a", "b", "c", "d", "e", "f"]
+        else:
+            cell_list = [self.cell_g]
+            cell_name = [""]
+
+        while self.is_meas_live:
+            if self.is_multiplex:
+                for cn, cell in enumerate(cell_list):
+                    if cell.isChecked():
+                        self.relays[cn].on()
+                        # print("on ",cn,cell)
+                        self.jv_perform_measurement(meas_process, forwa_vars, rever_vars, fixed_vars, cell_name, cn, cell)
+                        self.relays[cn].off()
+                        # print("off ",cn, cell)
+            else:
+                self.jv_perform_measurement(meas_process, forwa_vars, rever_vars, fixed_vars, cell_name)
+
+            self.is_meas_live = False
+
+    def mpp_multiplex_setup(self):
+        self.statusBar().showMessage("Tracking Maximum Power Point")
+        _, mpp_variables = self.read_measurement_variables()
+
+        if self.is_multiplex:
+            cell_list = [self.cell_a, self.cell_b, self.cell_c, self.cell_d, self.cell_e, self.cell_f]
+            cell_name = ["a", "b", "c", "d", "e", "f"]
+        else:
+            cell_list = [self.cell_g]
+            cell_name = [""]
+
+        while self.is_meas_live:
+            if self.is_multiplex:
+                for cn, cell in enumerate(cell_list):
+                    if cell.isChecked():
+                        self.relays[cn].on()
+                        self.mpp_perform_measurement(mpp_variables, cell_name, cn, cell)
+                        self.relays[cn].off()
+            else:
+                self.mpp_perform_measurement(mpp_variables, cell_name)
+
+            self.is_meas_live = False
+
+    def jv_perform_measurement(self, meas_process, forwa_vars, rever_vars, fixed_vars, cell_name, cn=0, cell=""):
         # while self.is_meas_live:
         for ck, mpr in enumerate(meas_process):
             # print(mpr)
@@ -1354,6 +1428,72 @@ class MainWindow(QtWidgets.QMainWindow):
             # if self.is_multiplex:
             #     self.relays[cn].off()
 
+    def mpp_perform_measurement(self, mpp_variables):
+        mpp_total_time, mpp_int_time, mpp_step, mpp_voltage, area = mpp_variables
+        max_voltage = mpp_voltage
+        time_c = time()
+        tc = 0
+
+        for i in np.arange(0, mpp_total_time / 3, mpp_int_time / 1000):
+            voltage_test = [max_voltage - mpp_step, max_voltage, max_voltage + mpp_step]
+            # print(voltage_test)
+            mpp_test_current = []
+            mpp_test_voltage = []
+            mpp_test_power = []
+
+            if self.is_multiplex:
+                for cn, cell in enumerate(cell_list):
+
+                    if cell.isChecked():
+                        self.relays[cn].on()
+                    for v in voltage_test:
+                        if self.is_meas_live:
+
+                            self.keithley.source_voltage = v
+                            # Wait for stabilized measurement
+                            QtTest.QTest.qWait(int(mpp_int_time))
+                            # Measure current & voltage
+                            m_current = self.keithley.current * 1000 / area[cn]
+                            m_voltage = v  # self.keithley.voltage
+
+                            mpp_test_current.append(m_current)
+                            mpp_test_voltage.append(m_voltage)
+                            mpp_test_power.append(abs(m_voltage * m_current))
+                        else:
+                            mpp_test_current.append(np.nan)
+                            mpp_test_voltage.append(np.nan)
+                            mpp_test_power.append(np.nan)
+                            break
+
+            index_max = mpp_test_power.index(max(mpp_test_power))
+            self.mpp_current.append(mpp_test_current[index_max])
+            max_voltage = mpp_test_voltage[index_max]
+            self.res_mpp_voltage.append(max_voltage)
+
+            self.display_live_voltage(max_voltage)
+            self.display_live_current(mpp_test_current[index_max])
+
+            self.mpp_power.append(mpp_test_power[index_max])
+
+            if i == 0:
+                tc = time() - time_c
+                elapsed_t = 0
+            else:
+                elapsed_t = (time() - time_c - tc)
+
+            self.mpp_time.append(elapsed_t / 60)
+            uhrzeit = strftime("%d.%m.%Y %H:%M:%S", gmtime())
+            self.mpp_zeit.append(uhrzeit)
+            try:
+                self.plot_mpp()
+            except:
+                pass
+
+            if elapsed_t > mpp_total_time:
+                break
+
+        self.display_live_current(0, False)
+        self.display_live_voltage(0, False)
 
     def display_live_voltage(self, value, live=True):
         if live:
@@ -1416,22 +1556,32 @@ class MainWindow(QtWidgets.QMainWindow):
         return voltage, current
 
     def jv_start_stop(self):
+        self.is_jv_measurement = True
+
+        self.selected_start_stop()
+
+    def mpp_start_stop(self):
+        self.is_mpp_measurement = True
+
+        self.selected_start_stop()
+
+    def selected_start_stop(self):
         self.keithley_startup_setup()
         # toggle live
         if not self.is_meas_live:
             self.is_meas_live = True
-            self.jv_process()
+            self.measurement_process()
         else:
             self.is_meas_live=False
 
-    def jv_process(self):
+    def measurement_process(self):
         # Reset values
         while self.is_meas_live:
             self.create_folder(False)
             self.dis_enable_widgets(True, "jv")
             self.statusBar().showMessage("Measuring JV curve")
             self.keithley.enable_source()
-            self.fix_data_and_send_to_measure()
+            self.read_measurement_type()
             try:
                 self.fix_jv_chars_for_save()
                 try: #TODO change this to boolean
@@ -1448,104 +1598,6 @@ class MainWindow(QtWidgets.QMainWindow):
             # self.popup_message("JV measurement done")
 
 
-    def mpp_start_stop(self):
-        self.keithley_startup_setup()
-        # toggle live
-        if not self.is_meas_live:
-            self.is_meas_live = True
-            self.mpp_process()
-        else:
-            self.is_meas_live = False
-
-    def mpp_process(self):
-        self.keithley_startup_setup()
-        while self.is_meas_live:
-            self.susi_shutter_open()
-            self.reset_plot_mpp()
-            self.create_folder(False)
-            self.dis_enable_widgets(True, "mpp")
-            self.keithley.enable_source()
-            self.curr_volt_tracking()
-            self.save_mpp()
-
-            self.keithley.disable_source()
-            self.susi_shutter_close()
-            self.dis_enable_widgets(False, "mpp")
-
-    def curr_volt_tracking(self):
-        area = float(self.sam_area.text())
-
-        mpp_total_time = float(self.mpp_ttime.text()) * 60
-        mpp_int_time = float(self.mpp_inttime.text())
-        mpp_step = float(self.mpp_stepSize.text())
-        mpp_voltage = float(self.mpp_voltage.text())
-
-        self.statusBar().showMessage("Tracking Maximum Power Point")
-
-        self.mpp_current = []
-        self.res_mpp_voltage = []
-        self.mpp_power = []
-        self.mpp_time = []
-        self.mpp_zeit = []
-
-        max_voltage = mpp_voltage
-        time_c = time()
-
-        # TODO mpp cell choose
-        for i in np.arange(0, mpp_total_time / 3, mpp_int_time / 1000):
-            voltage_test = [max_voltage - mpp_step, max_voltage, max_voltage + mpp_step]
-            # print(voltage_test)
-            mpp_test_current = []
-            mpp_test_voltage = []
-            mpp_test_power = []
-
-            for v in voltage_test:
-                if self.is_meas_live:
-                    self.keithley.source_voltage = v
-                    # Wait for stabilized measurement
-                    QtTest.QTest.qWait(int(mpp_int_time))
-                    # Measure current & voltage
-                    m_current = self.keithley.current * 1000 / area
-                    m_voltage = v  # self.keithley.voltage
-
-                    mpp_test_current.append(m_current)
-                    mpp_test_voltage.append(m_voltage)
-                    mpp_test_power.append(abs(m_voltage * m_current))
-                else:
-                    mpp_test_current.append(np.nan)
-                    mpp_test_voltage.append(np.nan)
-                    mpp_test_power.append(np.nan)
-                    break
-
-            index_max = mpp_test_power.index(max(mpp_test_power))
-            self.mpp_current.append(mpp_test_current[index_max])
-            max_voltage = mpp_test_voltage[index_max]
-            self.res_mpp_voltage.append(max_voltage)
-
-            self.display_live_voltage(max_voltage)
-            self.display_live_current(mpp_test_current[index_max])
-
-            self.mpp_power.append(mpp_test_power[index_max])
-
-            if i == 0:
-                tc = time() - time_c
-                elapsed_t = 0
-            else:
-                elapsed_t = (time() - time_c - tc)
-
-            self.mpp_time.append(elapsed_t / 60)
-            uhrzeit = strftime("%d.%m.%Y %H:%M:%S", gmtime())
-            self.mpp_zeit.append(uhrzeit)
-            try:
-                self.plot_mpp()
-            except:
-                pass
-
-            if elapsed_t > mpp_total_time:
-                break
-
-        self.display_live_current(0, False)
-        self.display_live_voltage(0, False)
 
     def collect_all_values_iv(self, voltage=[], current=[]):
         # Gather all measurements till now
