@@ -64,7 +64,6 @@ class TableModel(QAbstractTableModel):
 
         if role == Qt.BackgroundRole and self.highlight_row != "":
             if index.row() == self.highlight_row:
-                print("highlighted")
                 return QColor(Qt.yellow)
 
     def rowCount(self, index):
@@ -192,7 +191,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.is_meas_live = False
         self.is_first_plot = True
         self.is_recipe = False
-        self.is_mpp_bool = False
+        #self.is_mpp_bool = False
         self.is_jv_measurement = False
         self.is_mpp_measurement = False
 
@@ -721,7 +720,7 @@ class MainWindow(QtWidgets.QMainWindow):
             self.Rcurrent = 0
             self.RsunP = 0
 
-        if not self.is_mpp_bool:
+        if not self.is_mpp_measurement:
             all_metaD_labs = self.setup_labs_jv + self.exp_labels + self.glv_labels
             all_metaD_vals = self.setup_vals_jv + self.exp_vars + self.glv_vars
 
@@ -845,15 +844,19 @@ class MainWindow(QtWidgets.QMainWindow):
         vmpp = round(self.jv_chars_results["V_mpp(V)"].iat[-1], 3)
         self.mpp_voltage.setText(str(vmpp))
 
-    def check_filename(self, type, count=0):
+    def check_filename(self, type, name="", count=0):
         if type == "jv":
             tag = "JV_"
         elif type == "mpp":
             tag = "MPP_"
         else:
             tag = "Recipe_"
-
-        file_name = self.folder + tag + self.sample + ".txt"
+        if self.is_jv_measurement:
+            file_name = self.folder + tag + self.sample + ".txt"
+        elif self.is_mpp_measurement:
+            file_name = self.folder + tag + self.sample + name + ".txt"
+        else:
+            file_name = file_name = self.folder + "test" + self.sample + ".txt"
 
         while os.path.exists(file_name):
             count += 1
@@ -864,51 +867,56 @@ class MainWindow(QtWidgets.QMainWindow):
             return file_name
 
     def save_data(self):
-        self.is_mpp_bool = False
+        if self.is_jv_measurement:
+            self.save_jv()
+        # elif self.is_mpp_measurement:
+        #     self.save_mpp()
+        else:
+            print("Nothing to save here")
+
+    def save_jv(self):
+        #self.is_mpp_bool = False
         self.gather_all_metadata()
 
         metadata = pd.DataFrame.from_dict(self.meta_dict, orient='index')
         empty = pd.DataFrame(data={"": ["--"]})
         filename = self.check_filename("jv")
         # print("  " + filename)
-        try:
-            metadata.to_csv(filename, index=True, header=False, sep="\t")
-            empty.to_csv(filename, mode="a", index=False, header=False, lineterminator='\n', sep="\t")
-        except:
-            pass
+        metadata.to_csv(filename, index=True, header=False, sep="\t")
+        empty.to_csv(filename, mode="a", index=False, header=False, lineterminator='\n', sep="\t")
         try:
             self.jv_chars_results.T.to_csv(filename, mode="a", index=True, header=True, sep="\t")
             empty.to_csv(filename, mode="a", index=False, header=False, lineterminator='\n', sep="\t")
         except:
             pass
-        try:
-            self.curr_volt_results.to_csv(filename, mode="a", index=False, header=True, sep="\t")
-        except:
-            pass
+        self.curr_volt_results.to_csv(filename, mode="a", index=False, header=True, sep="\t")
         self.statusBar().showMessage("Data saved successfully to " + filename)
 
-    def save_mpp(self):
-        self.is_mpp_bool = True
+    def save_mpp(self, cell):
+        #self.is_mpp_bool = True
+        sample = self.LEsample.text()
         self.gather_all_metadata()
         metadata = pd.DataFrame.from_dict(self.meta_dict, orient='index')
-        mpp_data = pd.DataFrame({"Time (min)": self.mpp_time, "Hour":self.mpp_zeit, "Voltage (V)": self.res_mpp_voltage,
+        mpp_data = pd.DataFrame({"Elapsed (min)": self.mpp_time, "Date/Time":self.mpp_zeit, "Voltage (V)": self.res_mpp_voltage,
                                  "Current (mA/cm²)": self.mpp_current, "Power (mW/cm²)": self.mpp_power})
 
-        filename = self.check_filename("mpp")
+        filename = self.check_filename("mpp", cell)
 
         metadata.to_csv(filename, header=False, sep="\t")
         mpp_data.to_csv(filename, mode="a", index=False, sep="\t")
 
         self.statusBar().showMessage("Data saved successfully", 5000)
 
-        self.mpp_current = []
-        self.res_mpp_voltage = []
-        self.mpp_power = []
+        # self.mpp_current = []
+        # self.res_mpp_voltage = []
+        # self.mpp_power = []
+        # mpp_data = pd.DataFrame()
 
     def keithley_startup_setup(self):
         curr_limit = float(self.curr_lim.text())
-        self.keithley.apply_voltage(compliance_current=curr_limit / 1000)
-        self.keithley.measure_current(nplc=1, current=0.5, auto_range=True)
+        self.keithley.apply_voltage(compliance_current = curr_limit / 1000)
+        self.keithley.measure_current(nplc=3, current=0.5, auto_range=False)
+        self.keithley.auto_zero = "ONCE"
 
     def test_actual_current(self):
         self.keithley_startup_setup()
@@ -1140,7 +1148,7 @@ class MainWindow(QtWidgets.QMainWindow):
         logpath = "C:\\Data\\susi_log.txt"
 
         try:
-            df = pd.read_csv(logpath, index_col=None)
+            df = pd.read_csv(logpath, index_col=None, sep="\t")
         except:
             df = pd.DataFrame(columns=["Date", "Lamp Power(%)"])
             df = self.log_susi_newinput(90.5, df)
@@ -1263,7 +1271,7 @@ class MainWindow(QtWidgets.QMainWindow):
         # self.jv_variables = [volt_begin, volt_end, volt_step, ap, time, area]
         # self.mpp_variables = [mpp_total_time, mpp_int_time, mpp_step, mpp_voltage, area]
         jv_variables = [volt_begin, volt_end, volt_step, ap, time, area]
-        mpp_variables = [mpp_total_time, mpp_int_time, mpp_step, mpp_voltage, area] # TODO area here might be problematic
+        mpp_variables = [mpp_total_time, mpp_int_time, mpp_step, mpp_voltage, area]
 
         # if self.is_multiplex:
         #     cell_list = [self.cell_a,self.cell_b,self.cell_c,self.cell_d,self.cell_e,self.cell_f]
@@ -1350,7 +1358,9 @@ class MainWindow(QtWidgets.QMainWindow):
 
         while self.is_meas_live:
             if self.is_multiplex:
+                areas = self.get_areas()
                 for cn, cell in enumerate(cell_list):
+                    fixed_vars[-1] = areas[cn]
                     if cell.isChecked():
                         self.relays[cn].on()
                         # print("on ",cn,cell)
@@ -1364,7 +1374,9 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def mpp_multiplex_setup(self):
         self.statusBar().showMessage("Tracking Maximum Power Point")
+        # self.reset_plot_mpp()
         _, mpp_variables = self.read_measurement_variables()
+        areas = self.get_areas()
 
         if self.is_multiplex:
             cell_list = [self.cell_a, self.cell_b, self.cell_c, self.cell_d, self.cell_e, self.cell_f]
@@ -1376,10 +1388,19 @@ class MainWindow(QtWidgets.QMainWindow):
         while self.is_meas_live:
             if self.is_multiplex:
                 for cn, cell in enumerate(cell_list):
+                    mpp_variables[-1] = areas[cn]
+                    self.mpp_time = []
+                    self.mpp_zeit = []
+                    self.mpp_current = []
+                    self.res_mpp_voltage = []
+                    self.mpp_power = []
+
                     if cell.isChecked():
+                        #print(cn, cell_name[cn])
                         self.relays[cn].on()
                         self.mpp_perform_measurement(mpp_variables, cell_name, cn, cell)
                         self.relays[cn].off()
+                        self.save_mpp(cell_name[cn])
             else:
                 self.mpp_perform_measurement(mpp_variables, cell_name)
 
@@ -1428,12 +1449,16 @@ class MainWindow(QtWidgets.QMainWindow):
             # if self.is_multiplex:
             #     self.relays[cn].off()
 
-    def mpp_perform_measurement(self, mpp_variables):
+    def mpp_perform_measurement(self, mpp_variables,cell_name, cn, cell):
+        self.is_first_plot = True
         mpp_total_time, mpp_int_time, mpp_step, mpp_voltage, area = mpp_variables
+
+        # areas = self.get_areas()
         max_voltage = mpp_voltage
         time_c = time()
         tc = 0
 
+        #print(0, mpp_total_time / 3, mpp_int_time / 1000)
         for i in np.arange(0, mpp_total_time / 3, mpp_int_time / 1000):
             voltage_test = [max_voltage - mpp_step, max_voltage, max_voltage + mpp_step]
             # print(voltage_test)
@@ -1441,29 +1466,24 @@ class MainWindow(QtWidgets.QMainWindow):
             mpp_test_voltage = []
             mpp_test_power = []
 
-            if self.is_multiplex:
-                for cn, cell in enumerate(cell_list):
+            for v in voltage_test:
+                if self.is_meas_live:
 
-                    if cell.isChecked():
-                        self.relays[cn].on()
-                    for v in voltage_test:
-                        if self.is_meas_live:
+                    self.keithley.source_voltage = v
+                    # Wait for stabilized measurement
+                    QtTest.QTest.qWait(int(mpp_int_time))
+                    # Measure current & voltage
+                    m_current = self.keithley.current * 1000 / area
+                    m_voltage = v  # self.keithley.voltage
 
-                            self.keithley.source_voltage = v
-                            # Wait for stabilized measurement
-                            QtTest.QTest.qWait(int(mpp_int_time))
-                            # Measure current & voltage
-                            m_current = self.keithley.current * 1000 / area[cn]
-                            m_voltage = v  # self.keithley.voltage
-
-                            mpp_test_current.append(m_current)
-                            mpp_test_voltage.append(m_voltage)
-                            mpp_test_power.append(abs(m_voltage * m_current))
-                        else:
-                            mpp_test_current.append(np.nan)
-                            mpp_test_voltage.append(np.nan)
-                            mpp_test_power.append(np.nan)
-                            break
+                    mpp_test_current.append(m_current)
+                    mpp_test_voltage.append(m_voltage)
+                    mpp_test_power.append(abs(m_voltage * m_current))
+                else:
+                    mpp_test_current.append(np.nan)
+                    mpp_test_voltage.append(np.nan)
+                    mpp_test_power.append(np.nan)
+                    break
 
             index_max = mpp_test_power.index(max(mpp_test_power))
             self.mpp_current.append(mpp_test_current[index_max])
@@ -1484,10 +1504,10 @@ class MainWindow(QtWidgets.QMainWindow):
             self.mpp_time.append(elapsed_t / 60)
             uhrzeit = strftime("%d.%m.%Y %H:%M:%S", gmtime())
             self.mpp_zeit.append(uhrzeit)
-            try:
-                self.plot_mpp()
-            except:
-                pass
+            # try:
+            self.plot_mpp(cn, cell_name[cn])
+            # except:
+            #     pass
 
             if elapsed_t > mpp_total_time:
                 break
@@ -1541,7 +1561,7 @@ class MainWindow(QtWidgets.QMainWindow):
                     meas_currents.append(np.nan)
                     # pass
 
-            ave_curr = np.mean(meas_currents)
+            ave_curr = np.mean(np.array(meas_currents))
             self.display_live_current(ave_curr)
             self.display_live_voltage(i)
             current.append(ave_curr)
@@ -1578,25 +1598,36 @@ class MainWindow(QtWidgets.QMainWindow):
         # Reset values
         while self.is_meas_live:
             self.create_folder(False)
-            self.dis_enable_widgets(True, "jv")
-            self.statusBar().showMessage("Measuring JV curve")
             self.keithley.enable_source()
             self.read_measurement_type()
-            try:
-                self.fix_jv_chars_for_save()
-                try: #TODO change this to boolean
-                    self.vmpp_value_to_tracking()
+
+            if self.is_jv_measurement:
+                self.reset_plot_jv()
+                self.dis_enable_widgets(True, "jv")
+                self.statusBar().showMessage("Measuring JV curve")
+                try:
+                    self.fix_jv_chars_for_save()
+                    try: #TODO change this to boolean
+                        self.vmpp_value_to_tracking()
+                    except:
+                        pass
                 except:
                     pass
-                self.save_data()
-            except:
-                pass
+                self.dis_enable_widgets(False, "jv")
+
+            elif self.is_mpp_measurement:
+                self.reset_plot_mpp()
+                self.dis_enable_widgets(True, "mpp")
+                self.statusBar().showMessage("Measuring MPP curve")
+
+                self.dis_enable_widgets(False, "mpp")
+            else:
+                print("No process is being measured")
+
+            self.save_data()
 
             self.susi_shutter_close()
             self.keithley.disable_source()
-            self.dis_enable_widgets(False, "jv")
-            # self.popup_message("JV measurement done")
-
 
 
     def collect_all_values_iv(self, voltage=[], current=[]):
@@ -1658,8 +1689,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.canvas.axes.axvline(0, color='black')
         self._plot_ref = None
 
-    def plot_jv(self, voltage, current, mode, counter):
-
+    def plot_color_selection(self, counter):
         if counter == 0:
             colli ="#0000FF" #blue
             # collib = "#0000FF90"
@@ -1691,30 +1721,29 @@ class MainWindow(QtWidgets.QMainWindow):
             colda = "#00000055"
             name = "g_"
 
+        return colli, colda, name
+    def plot_jv(self, voltage, current, mode, counter):
+
+        colli, colda, name = self.plot_color_selection(counter)
+
         # Make plot
         if self.is_first_plot:
             if "Light" in mode:
                 if "Forward" in mode:
-                    # self._plot_ref = self.canvas.axes.plot(voltage, current, 'xb-', label=name+"Forward")
                     self._plot_ref = self.canvas.axes.plot(voltage, current, color=colli, linestyle="-",
                                                            marker = ".", label=name + "Forward")
                     self.is_first_plot = False
                 else:
-                    # self._plot_ref = self.canvas.axes.plot(voltage, current, '.r--', label=name+"Backward")
                     self._plot_ref = self.canvas.axes.plot(voltage, current, color=colli, linestyle="--",
                                                            marker = "x",label=name + "Backward")
                     self.is_first_plot = False
             else:
                 if "Forward" in mode:
-                    # self._plot_ref = self.canvas.axes.plot(voltage, current, linestyle='--',
-                    #                                        marker='x', color='black', label=name+"Dark For")
                     self._plot_ref = self.canvas.axes.plot(voltage, current, linestyle='-.',
                                                            marker = ".",color=colda, label=name + "Dark For")
                     self.is_first_plot = False
 
                 else:
-                    # self._plot_ref = self.canvas.axes.plot(voltage, current, linestyle='--',
-                    #                                        marker='.', color='grey', label=name+"Dark Back")
                     self._plot_ref = self.canvas.axes.plot(voltage, current, linestyle=':',
                                                            marker = "x",color=colda, label=name + "Dark Back")
                     self.is_first_plot = False
@@ -1722,22 +1751,18 @@ class MainWindow(QtWidgets.QMainWindow):
         else:
             if "Light" in mode:
                 if "Forward" in mode:
-                    # self.canvas.axes.plot(voltage, current, 'xb-')
                     self._plot_ref = self.canvas.axes.plot(voltage, current, marker = ".", color=colli, linestyle="-")
                 else:
-                    # self.canvas.axes.plot(voltage, current, '.r--')
                     self.canvas.axes.plot(voltage, current, marker = "x", color=colli, linestyle="--")
             else:
                 if "Forward" in mode:
-                    # self.canvas.axes.plot(voltage, current, linestyle='--', marker='x', color='black')
                     self._plot_ref = self.canvas.axes.plot(voltage, current, marker = ".", linestyle='-.',color=colda)
                 else:
-                    # self.canvas.axes.plot(voltage, current, linestyle='--', marker='.', color='grey')
                     self._plot_ref = self.canvas.axes.plot(voltage, current, marker = "x", linestyle=':',color=colda)
 
         self.canvas.axes.legend(fontsize="8")
 
-        volt, curr = self.collect_all_values_iv(voltage, current)
+        # volt, curr = self.collect_all_values_iv(voltage, current)
         self.center_plot(voltage, current)
 
         # Draw plot
@@ -1785,30 +1810,23 @@ class MainWindow(QtWidgets.QMainWindow):
             self.canvas.axes.set_ylim([-0.1, 0.1])
             self.canvas.axes.set_xlim([-0.1, 0.1])
 
-    def plot_mpp(self):
+    def plot_mpp(self, counter, cell):
+        colli, colda, name = self.plot_color_selection(counter)
+
         # Make plot
-        if self._plot_ref is None:
-            self._plot_ref = self.canvas.axes.plot(self.mpp_time, self.mpp_power, 'xb-', label="Power")
+        if self.is_first_plot:
+            self._plot_ref = self.canvas.axes.plot(self.mpp_time, self.mpp_power, color=colli, linestyle="-",
+                                                           marker = ".", label="Power: cell "+cell)
+            self.is_first_plot = False
 
         else:
-            self.canvas.axes.plot(self.mpp_time, self.mpp_power, 'xb-')
+            self._plot_ref = self.canvas.axes.plot(self.mpp_time, self.mpp_power, color=colli,
+                                                   linestyle="-", marker=".")
 
-        # Get min and max values to center plot
-        min_x = np.min(self.mpp_time)
-        max_x = np.max(self.mpp_time)
-        min_y = np.min(self.mpp_power)
-        max_y = np.max(self.mpp_power)
+        self.canvas.axes.legend(fontsize="8")
 
-        ex = (max_x - min_x) * 0.05
-        ey = (max_y - min_y) * 0.05
-
-        room = 0.05
-        if min_x != max_x:
-            self.canvas.axes.set_ylim([min_y - ey, max_y + ey])
-            self.canvas.axes.set_xlim([min_x - ex, max_x + ex])
-        else:
-            self.canvas.axes.set_ylim([min_y - room, max_y + room])
-            self.canvas.axes.set_xlim([min_x - room, max_x + room])
+        # volt, curr = self.collect_all_values_iv(voltage, current)
+        self.center_plot(self.mpp_time, self.mpp_power)
 
         # Draw plot
         self.canvas.draw_idle()
