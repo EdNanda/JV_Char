@@ -7,7 +7,6 @@ from PyQt5 import QtWidgets, QtGui, QtTest
 from PyQt5.QtWidgets import QWidget, QLineEdit, QFormLayout, QHBoxLayout, QVBoxLayout, QSpacerItem, QGridLayout
 from PyQt5.QtWidgets import QFrame, QPushButton, QCheckBox, QLabel, QToolButton, QTextEdit, QPlainTextEdit
 from PyQt5.QtWidgets import QSizePolicy, QMessageBox, QDialog,QInputDialog
-from PyQt5.QtCore import QThreadPool
 from PyQt5.QtGui import QFont, QColor
 from PyQt5.QtWidgets import QTableView
 from PyQt5.QtCore import QAbstractTableModel, Qt
@@ -20,6 +19,7 @@ import pyvisa as visa
 import pandas as pd
 import numpy as np
 import os
+import re
 from k8090 import relay_card
 import serial.tools.list_ports
 import serial
@@ -106,7 +106,6 @@ class MainWindow(QtWidgets.QMainWindow):
         super(MainWindow, self).__init__(*args, **kwargs)
 
         # Initialize parameters
-
         self.setWindowTitle("JV Characteristics")
         folder = os.path.abspath(os.getcwd()) + "\\"
         self.setWindowIcon(QtGui.QIcon(folder + "solar.ico"))
@@ -170,10 +169,6 @@ class MainWindow(QtWidgets.QMainWindow):
                 self.popup_message("    susi\n"
                                    "was not found")
 
-
-
-        # self.threadpool = QThreadPool()
-
         self.create_widgets()
 
         self.button_actions()  # Set button actions
@@ -191,7 +186,6 @@ class MainWindow(QtWidgets.QMainWindow):
         self.is_meas_live = False
         self.is_first_plot = True
         self.is_recipe = False
-        #self.is_mpp_bool = False
         self.is_jv_measurement = False
         self.is_mpp_measurement = False
 
@@ -303,8 +297,8 @@ class MainWindow(QtWidgets.QMainWindow):
         LsetParameters.addWidget(self.volt_step, 2, 1, Qt.AlignLeft)
         LsetParameters.addWidget(QLabel("Averaging points"), 2, 2, Qt.AlignRight)
         LsetParameters.addWidget(self.ave_pts, 2, 3, Qt.AlignLeft)
-        LsetParameters.addWidget(QLabel("Integration time (s)"), 3, 0, Qt.AlignRight)
-        LsetParameters.addWidget(self.int_time, 3, 1, Qt.AlignLeft)
+        #LsetParameters.addWidget(QLabel("Integration time (s)"), 3, 0, Qt.AlignRight)
+        #LsetParameters.addWidget(self.int_time, 3, 1, Qt.AlignLeft)
         LsetParameters.addWidget(QLabel("Settling time (s)"), 3, 2, Qt.AlignRight)
         LsetParameters.addWidget(self.set_time, 3, 3, Qt.AlignLeft)
         LsetParameters.addWidget(QLabel("Current Limit (mA)"), 4, 0, Qt.AlignRight)
@@ -313,10 +307,6 @@ class MainWindow(QtWidgets.QMainWindow):
         LsetParameters.addWidget(self.sam_area, 4, 3, Qt.AlignLeft)
         LsetParameters.addWidget(QLabel("Power Density (mW/cm²)"), 5, 0, Qt.AlignRight)
         LsetParameters.addWidget(self.pow_dens, 5, 1, Qt.AlignLeft)
-        # LTsetup.addWidget(QLabel("1-Sun Reference (mA)"), 5, 2, Qt.AlignRight)
-        # LTsetup.addWidget(self.sun_ref, 5, 3, Qt.AlignLeft)
-        # LTsetup.addWidget(QLabel("Ref. Current (mA)\nSun percentage"),6,2,Qt.AlignRight)
-        # LTsetup.addWidget(self.curr_ref,6,3,Qt.AlignLeft)
 
         # Third set of setup values
         sbb = 15
@@ -745,6 +735,9 @@ class MainWindow(QtWidgets.QMainWindow):
         self.meta_dict["Ref. Current(mA)"] = self.Rcurrent
         self.meta_dict["Sun%"] = self.RsunP
 
+        if self.is_susi:
+            self.meta_dict["SuSi Intensity (%)"] = self.susi_intensity
+
         # for cp,ad in enumerate(addit_labl):
         #     self.meta_dict[ad] = addit_data[cp]
 
@@ -779,9 +772,12 @@ class MainWindow(QtWidgets.QMainWindow):
             wd.setEnabled(False)
 
     def dis_enable_widgets(self, status, process):
+        multiplex = [self.area_a, self.area_b, self.area_c, self.area_d, self.area_e, self.area_f, self.area_g,
+                 self.cell_a, self.cell_b, self.cell_c, self.cell_d, self.cell_e, self.cell_f, self.cell_g,
+                 self.multiplex]
 
-        wi_dis = self.setup_vals_jv + self.setup_vals_mpp + self.other_buttons + \
-                 [self.Bfolder, self.Bpath]#, self.refCurrent]
+        wi_dis = self.setup_vals_jv + self.setup_vals_mpp + self.other_buttons + multiplex + \
+                 [self.Bfolder, self.Bpath, self.susiShutter]#, self.refCurrent]
 
         self.dis_enable_starts(status, process)
 
@@ -854,20 +850,21 @@ class MainWindow(QtWidgets.QMainWindow):
         if self.is_jv_measurement:
             file_name = self.folder + tag + self.sample + ".txt"
         elif self.is_mpp_measurement:
-            file_name = self.folder + tag + self.sample + name + ".txt"
+            file_name = self.folder + tag + self.sample + "_" + name + ".txt"
         else:
-            file_name = file_name = self.folder + "test" + self.sample + ".txt"
+            file_name = file_name = self.folder + "test_" + self.sample + ".txt"
 
         while os.path.exists(file_name):
             count += 1
-
-            file_name = self.folder + tag + self.sample + "-" + str(count) + ".txt"
-            # print(file_name)
+            if self.is_mpp_measurement:
+                file_name = self.folder + tag + self.sample + "_" + name + "-" + str(count) + ".txt"
+            else:
+                file_name = self.folder + tag + self.sample + "-" + str(count) + ".txt"
         else:
             return file_name
 
     def save_data(self):
-        if self.is_jv_measurement:
+        if self.is_jv_measurement or self.is_recipe:
             self.save_jv()
         # elif self.is_mpp_measurement:
         #     self.save_mpp()
@@ -907,16 +904,13 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.statusBar().showMessage("Data saved successfully", 5000)
 
-        # self.mpp_current = []
-        # self.res_mpp_voltage = []
-        # self.mpp_power = []
-        # mpp_data = pd.DataFrame()
 
-    def keithley_startup_setup(self):
+    def keithley_startup_setup(self): # TODO keithley configuration
         curr_limit = float(self.curr_lim.text())
         self.keithley.apply_voltage(compliance_current = curr_limit / 1000)
-        self.keithley.measure_current(nplc=3, current=0.5, auto_range=False)
+        self.keithley.measure_current(nplc=4, current=0.3, auto_range=False)
         self.keithley.auto_zero = "ONCE"
+        # self.keithley.current_filter_count = int(self.ave_pts.text())
 
     def test_actual_current(self):
         self.keithley_startup_setup()
@@ -936,37 +930,9 @@ class MainWindow(QtWidgets.QMainWindow):
                                                                '  separate with commas (,)\n'
                                                                '    e.g. BL,BL,BL,BD,...')
         if ok:
-            self.recipe_measurement(text)
-
-
-    def recipe_measurement(self,text):
-        # TODO make a recipe
-        self.is_recipe = True
-        self.recipe_list = list(text.split(",")) #TODO make it fool proof
-        self.is_meas_live = True
-
-        self.create_folder(False)
-        self.dis_enable_widgets(True, "jv")
-        self.statusBar().showMessage("Measuring Recipe of "+str(len(self.recipe_list))+" steps: "+text)
-        self.keithley.enable_source()
-        self.read_measurement_type()
-        try:
-            self.fix_jv_chars_for_save()
-            try: #TODO change this to boolean
-                self.vmpp_value_to_tracking()
-            except:
-                pass
-            self.save_data()
-        except:
-            pass
-
-        self.susi_shutter_close()
-        self.keithley.disable_source()
-        self.dis_enable_widgets(False, "jv")
-        self.popup_message("Recipe measurement done")
-        self.is_recipe = False
-        print(text)
-
+            self.is_meas_live = True
+            self.is_recipe = True
+            self.measurement_process(text.upper())
 
     def jv_chars_calculation(self, volt, curr):
         # Find Isc (find voltage value closest to 0 Volts)
@@ -1051,7 +1017,6 @@ class MainWindow(QtWidgets.QMainWindow):
         print(answer)
 
     def susi_startup(self):
-        # TODO if is_susi, add settings to save metadata
         if self.is_susi:
             self.susi.write(b'C1')  # Enable cooling
             QtTest.QTest.qWait(int(1 * 1000))
@@ -1059,7 +1024,7 @@ class MainWindow(QtWidgets.QMainWindow):
             QtTest.QTest.qWait(int(2 * 1000))
             self.susi_startup_intensity()
             QtTest.QTest.qWait(int(1 * 1000))
-            self.statusBar().showMessage("susi startup done", 3000)
+            self.statusBar().showMessage("Susi Startup READY", 3000)
 
     def susi_shutdown(self):
         reply = QMessageBox.question(self, 'Turn SuSi off', 'Are you sure you want to turn the SuSi off?',
@@ -1092,6 +1057,7 @@ class MainWindow(QtWidgets.QMainWindow):
         # Set layout
         wid = QWidget()
         layout = QGridLayout()
+        # TODO save relevant info here to metadata
         self.susi_intensity = QLineEdit()
         self.ref_area = QLineEdit()
         self.sun_ref = QLineEdit()
@@ -1258,7 +1224,7 @@ class MainWindow(QtWidgets.QMainWindow):
         volt_begin = float(self.volt_start.text())
         volt_end = float(self.volt_end.text())
         volt_step = float(self.volt_step.text())
-        ap = int(self.ave_pts.text())
+        ap = int(self.ave_pts.text()) #TODO change here to 1 for averaging
         time = float(self.set_time.text())
 
         # MPP Variables
@@ -1267,23 +1233,13 @@ class MainWindow(QtWidgets.QMainWindow):
         mpp_step = float(self.mpp_stepSize.text())
         mpp_voltage = float(self.mpp_voltage.text())
 
-
-        # self.jv_variables = [volt_begin, volt_end, volt_step, ap, time, area]
-        # self.mpp_variables = [mpp_total_time, mpp_int_time, mpp_step, mpp_voltage, area]
         jv_variables = [volt_begin, volt_end, volt_step, ap, time, area]
         mpp_variables = [mpp_total_time, mpp_int_time, mpp_step, mpp_voltage, area]
-
-        # if self.is_multiplex:
-        #     cell_list = [self.cell_a,self.cell_b,self.cell_c,self.cell_d,self.cell_e,self.cell_f]
-        #     cell_name = ["a","b","c","d","e","f"]
-        # else:
-        #     cell_list = [self.cell_g]
-        #     cell_name = [""]
 
         return jv_variables, mpp_variables
 
     def empty_results_arrays(self):
-        if self.is_jv_measurement:
+        if self.is_jv_measurement or self.is_recipe:
             self.res_fwd_curr = []
             self.res_fwd_volt = []
             self.res_bkw_curr = []
@@ -1338,10 +1294,10 @@ class MainWindow(QtWidgets.QMainWindow):
         elif self.is_mpp_measurement:
             self.mpp_multiplex_setup()
         else:
-            print("no process found")
+            print("read_measurement_type not found")
 
     def jv_multiplex_setup(self, meas_process):
-        self.statusBar().showMessage("Measuring JV curve")
+        #self.statusBar().showMessage("Measuring JV curve")
         jv_variables, _ = self.read_measurement_variables()
         volt_begin, volt_end, volt_step, ap, time, area = jv_variables
 
@@ -1363,14 +1319,13 @@ class MainWindow(QtWidgets.QMainWindow):
                     fixed_vars[-1] = areas[cn]
                     if cell.isChecked():
                         self.relays[cn].on()
-                        # print("on ",cn,cell)
                         self.jv_perform_measurement(meas_process, forwa_vars, rever_vars, fixed_vars, cell_name, cn, cell)
                         self.relays[cn].off()
-                        # print("off ",cn, cell)
+                self.is_meas_live = False
+
             else:
                 self.jv_perform_measurement(meas_process, forwa_vars, rever_vars, fixed_vars, cell_name)
 
-            self.is_meas_live = False
 
     def mpp_multiplex_setup(self):
         self.statusBar().showMessage("Tracking Maximum Power Point")
@@ -1384,6 +1339,8 @@ class MainWindow(QtWidgets.QMainWindow):
         else:
             cell_list = [self.cell_g]
             cell_name = [""]
+
+        self.susi_shutter_open()
 
         while self.is_meas_live:
             if self.is_multiplex:
@@ -1405,6 +1362,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 self.mpp_perform_measurement(mpp_variables, cell_name)
 
             self.is_meas_live = False
+        self.susi_shutter_close()
 
     def jv_perform_measurement(self, meas_process, forwa_vars, rever_vars, fixed_vars, cell_name, cn=0, cell=""):
         # while self.is_meas_live:
@@ -1439,10 +1397,14 @@ class MainWindow(QtWidgets.QMainWindow):
             else:
                 m_name = cell_name[cn]
 
-            if self.is_meas_live:
+            if self.is_meas_live and ilum == "Light":
                 chars = self.jv_chars_calculation(volt, curr)
-                self.jv_chars_results[m_name + "_" + direc + "_" + ilum] = chars
+                self.jv_chars_results["{0}_{1}_{2}".format(m_name, direc, ilum)] = chars
                 self.jv_char_qtabledisplay()
+                try:
+                    self.vmpp_value_to_tracking()
+                except:
+                    pass
             self.curr_volt_results["Voltage (V)_" + m_name + "_" + direc + "_" + ilum] = volt
             self.curr_volt_results["Current Density(mA/cm²)_" + m_name + "_" + direc + "_" + ilum] = curr
 
@@ -1585,6 +1547,10 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.selected_start_stop()
 
+    def recipe_start(self):
+        self.is_recipe = True
+        self.selected_start_stop()
+
     def selected_start_stop(self):
         self.keithley_startup_setup()
         # toggle live
@@ -1594,41 +1560,50 @@ class MainWindow(QtWidgets.QMainWindow):
         else:
             self.is_meas_live=False
 
-    def measurement_process(self):
+    def measurement_process(self, recipe_text=""):
         # Reset values
         while self.is_meas_live:
             self.create_folder(False)
             self.keithley.enable_source()
-            self.read_measurement_type()
-
             if self.is_jv_measurement:
                 self.reset_plot_jv()
                 self.dis_enable_widgets(True, "jv")
                 self.statusBar().showMessage("Measuring JV curve")
-                try:
-                    self.fix_jv_chars_for_save()
-                    try: #TODO change this to boolean
-                        self.vmpp_value_to_tracking()
-                    except:
-                        pass
-                except:
-                    pass
-                self.dis_enable_widgets(False, "jv")
-
             elif self.is_mpp_measurement:
                 self.reset_plot_mpp()
                 self.dis_enable_widgets(True, "mpp")
                 self.statusBar().showMessage("Measuring MPP curve")
-
-                self.dis_enable_widgets(False, "mpp")
+            elif self.is_recipe:
+                self.reset_plot_jv()
+                self.recipe_list = re.split(',| |-|_|;',recipe_text)
+                self.dis_enable_widgets(True, "jv")
+                self.statusBar().showMessage("Measuring Recipe of " + str(len(self.recipe_list)) + " steps: " + recipe_text)
             else:
-                print("No process is being measured")
+                print("No measurement_process")
+                self.is_meas_live = False
+
+            self.read_measurement_type() #This starts the measurement process
+
+            if self.is_jv_measurement or self.is_recipe:
+                try:
+                    self.fix_jv_chars_for_save()
+                except:
+                    pass
+                self.dis_enable_widgets(False, "jv")
+                self.popup_message("JV measurement done")
+
+            elif self.is_mpp_measurement:
+                self.dis_enable_widgets(False, "mpp")
+                self.popup_message("MPP measurement done")
 
             self.save_data()
-
             self.susi_shutter_close()
             self.keithley.disable_source()
 
+            self.is_meas_live = False
+            self.is_jv_measurement = False
+            self.is_recipe = False
+            self.is_mpp_measurement = False
 
     def collect_all_values_iv(self, voltage=[], current=[]):
         # Gather all measurements till now
@@ -1649,9 +1624,6 @@ class MainWindow(QtWidgets.QMainWindow):
 
         volt = volt + voltage
         curr = curr + current
-
-        # print(volt)
-        # print(curr)
 
         return volt, curr
 
