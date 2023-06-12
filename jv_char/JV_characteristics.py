@@ -7,7 +7,7 @@ from PyQt5 import QtWidgets, QtGui, QtTest
 from PyQt5.QtWidgets import QWidget, QLineEdit, QFormLayout, QHBoxLayout, QVBoxLayout, QSpacerItem, QGridLayout
 from PyQt5.QtWidgets import QFrame, QPushButton, QCheckBox, QLabel, QToolButton, QTextEdit, QPlainTextEdit
 from PyQt5.QtWidgets import QSizePolicy, QMessageBox, QDialog,QInputDialog
-from PyQt5.QtGui import QFont, QColor
+from PyQt5.QtGui import QFont, QColor, QPixmap
 from PyQt5.QtWidgets import QTableView
 from PyQt5.QtCore import QAbstractTableModel, Qt
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg, NavigationToolbar2QT as NavigationToolbar
@@ -158,6 +158,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
         except:
             self.is_susi = False
+            self.is_shutter_open = False
 
             if not self.keithley:
                 self.statusBar().showMessage("##    Keithley and susi not found    ##")
@@ -396,28 +397,36 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.area_g.setText("1")
 
+        sample_design = QLabel(self)
+        pixmap = QPixmap("../Resources/cell_layout.png")
+        pixmap = pixmap.scaledToHeight(120)
+        sample_design.setPixmap(pixmap)
+
         LsetCells.addWidget(QLabel(" "), 0, 0)
         LsetCells.addWidget(QLabel("Multiplexing"), 1, 0, Qt.AlignRight)
         LsetCells.addWidget(self.multiplex, 1, 1, Qt.AlignLeft)
-        LsetCells.addWidget(QLabel("B"), 2, 0, Qt.AlignRight)
-        LsetCells.addWidget(self.area_b, 2, 1, Qt.AlignCenter)
-        LsetCells.addWidget(self.cell_b, 2, 2, Qt.AlignRight)
-        LsetCells.addWidget(QLabel("D"), 3, 0, Qt.AlignRight)
-        LsetCells.addWidget(self.area_d, 3, 1, Qt.AlignCenter)
-        LsetCells.addWidget(self.cell_d, 3, 2, Qt.AlignRight)
-        LsetCells.addWidget(QLabel("F"), 4, 0, Qt.AlignRight)
-        LsetCells.addWidget(self.area_f, 4, 1, Qt.AlignCenter)
-        LsetCells.addWidget(self.cell_f, 4, 2, Qt.AlignRight)
-        LsetCells.addWidget(QLabel("A"), 2, 6, Qt.AlignLeft)
-        LsetCells.addWidget(self.area_a, 2, 5, Qt.AlignCenter)
-        LsetCells.addWidget(self.cell_a, 2, 4, Qt.AlignLeft)
-        LsetCells.addWidget(QLabel("C"), 3, 6, Qt.AlignLeft)
-        LsetCells.addWidget(self.area_c, 3, 5, Qt.AlignCenter)
-        LsetCells.addWidget(self.cell_c, 3, 4, Qt.AlignLeft)
-        LsetCells.addWidget(QLabel("E"), 4, 6, Qt.AlignLeft)
-        LsetCells.addWidget(self.area_e, 4, 5, Qt.AlignCenter)
-        LsetCells.addWidget(self.cell_e, 4, 4, Qt.AlignLeft)
-        LsetCells.addWidget(QLabel(" "), 5, 3)
+        LsetCells.addWidget(QLabel("Area(cm²)"), 2, 1, Qt.AlignRight)
+        LsetCells.addWidget(QLabel("Area(cm²)"), 2, 5, Qt.AlignRight)
+        LsetCells.addWidget(QLabel("B"), 3, 0, Qt.AlignRight)
+        LsetCells.addWidget(self.area_b, 3, 1, Qt.AlignCenter)
+        LsetCells.addWidget(self.cell_b, 3, 2, Qt.AlignRight)
+        LsetCells.addWidget(QLabel("D"), 4, 0, Qt.AlignRight)
+        LsetCells.addWidget(self.area_d, 4, 1, Qt.AlignCenter)
+        LsetCells.addWidget(self.cell_d, 4, 2, Qt.AlignRight)
+        LsetCells.addWidget(QLabel("F"), 5, 0, Qt.AlignRight)
+        LsetCells.addWidget(self.area_f, 5, 1, Qt.AlignCenter)
+        LsetCells.addWidget(self.cell_f, 5, 2, Qt.AlignRight)
+        LsetCells.addWidget(QLabel("A"), 3, 6, Qt.AlignLeft)
+        LsetCells.addWidget(self.area_a, 3, 5, Qt.AlignCenter)
+        LsetCells.addWidget(self.cell_a, 3, 4, Qt.AlignLeft)
+        LsetCells.addWidget(QLabel("C"), 4, 6, Qt.AlignLeft)
+        LsetCells.addWidget(self.area_c, 4, 5, Qt.AlignCenter)
+        LsetCells.addWidget(self.cell_c, 4, 4, Qt.AlignLeft)
+        LsetCells.addWidget(QLabel("E"), 5, 6, Qt.AlignLeft)
+        LsetCells.addWidget(self.area_e, 5, 5, Qt.AlignCenter)
+        LsetCells.addWidget(self.cell_e, 5, 4, Qt.AlignLeft)
+        LsetCells.addWidget(sample_design, 3, 3, 3, 1, Qt.AlignCenter)
+        LsetCells.addWidget(QLabel(" "), 6, 3)
 
         # Four set of setup values
         LsetStart = QGridLayout()
@@ -586,6 +595,8 @@ class MainWindow(QtWidgets.QMainWindow):
             self.multiplex.setEnabled(False)
         else:
             self.is_multiplex = True
+            self.sam_area.setEnabled(False) #TODO test this
+
 
         if self.is_susi:
             self.susi_startup()
@@ -1057,7 +1068,6 @@ class MainWindow(QtWidgets.QMainWindow):
         # Set layout
         wid = QWidget()
         layout = QGridLayout()
-        # TODO save relevant info here to metadata
         self.susi_intensity = QLineEdit()
         self.ref_area = QLineEdit()
         self.sun_ref = QLineEdit()
@@ -1325,6 +1335,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
             else:
                 self.jv_perform_measurement(meas_process, forwa_vars, rever_vars, fixed_vars, cell_name)
+                self.is_meas_live = False
 
 
     def mpp_multiplex_setup(self):
@@ -1360,6 +1371,7 @@ class MainWindow(QtWidgets.QMainWindow):
                         self.save_mpp(cell_name[cn])
             else:
                 self.mpp_perform_measurement(mpp_variables, cell_name)
+                self.save_mpp('')
 
             self.is_meas_live = False
         self.susi_shutter_close()
@@ -1370,11 +1382,11 @@ class MainWindow(QtWidgets.QMainWindow):
             # print(mpr)
             self.is_first_plot = True
             if "D" in mpr:  # if it is a dark measurement
-                if self.is_shutter_open:
+                if self.is_susi and self.is_shutter_open:
                     self.susi_shutter_close()
                 ilum = "Dark"
             else:
-                if not self.is_shutter_open:
+                if self.is_susi and not self.is_shutter_open:
                     self.susi_shutter_open()
                 ilum = "Light"
 
@@ -1385,7 +1397,6 @@ class MainWindow(QtWidgets.QMainWindow):
                 direc = "Reverse"
                 all_vars = rever_vars + fixed_vars + [ilum + direc]
 
-            # print(all_vars)
             volt, curr = self.curr_volt_measurement(all_vars, cn)
 
             if self.is_recipe:
@@ -1408,10 +1419,8 @@ class MainWindow(QtWidgets.QMainWindow):
             self.curr_volt_results["Voltage (V)_" + m_name + "_" + direc + "_" + ilum] = volt
             self.curr_volt_results["Current Density(mA/cm²)_" + m_name + "_" + direc + "_" + ilum] = curr
 
-            # if self.is_multiplex:
-            #     self.relays[cn].off()
 
-    def mpp_perform_measurement(self, mpp_variables,cell_name, cn, cell):
+    def mpp_perform_measurement(self, mpp_variables,cell_name, cn=0, cell=''):
         self.is_first_plot = True
         mpp_total_time, mpp_int_time, mpp_step, mpp_voltage, area = mpp_variables
 
@@ -1466,10 +1475,7 @@ class MainWindow(QtWidgets.QMainWindow):
             self.mpp_time.append(elapsed_t / 60)
             uhrzeit = strftime("%d.%m.%Y %H:%M:%S", gmtime())
             self.mpp_zeit.append(uhrzeit)
-            # try:
             self.plot_mpp(cn, cell_name[cn])
-            # except:
-            #     pass
 
             if elapsed_t > mpp_total_time:
                 break
