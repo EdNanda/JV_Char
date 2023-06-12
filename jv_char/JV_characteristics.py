@@ -258,6 +258,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.sam_area = QLineEdit()
         self.pow_dens = QLineEdit()
         self.cell_num = QLineEdit()
+        self.susi_intensity = QLineEdit() #This is needed for susi popup (repeated)
         # self.sun_ref = QLineEdit()
         self.curr_ref = QLabel("0\n0%")
 
@@ -747,7 +748,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.meta_dict["Sun%"] = self.RsunP
 
         if self.is_susi:
-            self.meta_dict["SuSi Intensity (%)"] = self.susi_intensity
+            self.meta_dict["SuSi Intensity (%)"] = float(self.susi_intensity.text())
 
         # for cp,ad in enumerate(addit_labl):
         #     self.meta_dict[ad] = addit_data[cp]
@@ -1087,7 +1088,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.bsave.setMaximumWidth(40)
         self.bcancel.setMaximumWidth(40)
 
-        self.susi_intensity.setText(str(self.susi_percentage))
+        self.susi_intensity.setText(str(self.susi_percentage)) #May not be necessary (repeated)
         self.ref_area.setText("1")
         self.sun_ref.setText("130.3")
         self.Bsusi_set.setText("Set")
@@ -1132,6 +1133,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
         intensity = df["Lamp Power(%)"].iloc[-1]
         self.susi_percentage = intensity
+        self.susi_intensity.setText(str(intensity))
 
         return intensity
 
@@ -1234,7 +1236,7 @@ class MainWindow(QtWidgets.QMainWindow):
         volt_begin = float(self.volt_start.text())
         volt_end = float(self.volt_end.text())
         volt_step = float(self.volt_step.text())
-        ap = int(self.ave_pts.text()) #TODO change here to 1 for averaging
+        ap = int(self.ave_pts.text()) #TODO change here to 1 for keithley averaging
         time = float(self.set_time.text())
 
         # MPP Variables
@@ -1285,19 +1287,19 @@ class MainWindow(QtWidgets.QMainWindow):
             meas_process = self.recipe_list
             self.jv_multiplex_setup(meas_process)
         elif self.is_jv_measurement:
-            check_box_buttons = [self.rev_bmD, self.for_bmD, self.rev_bmL, self.for_bmL]
+            check_box_buttons = [self.for_bmD, self.rev_bmD, self.for_bmL, self.rev_bmL]
 
             meas_process = []
             for ck, cbb in enumerate(check_box_buttons):
                 if cbb.isChecked():
                     if ck == 0:
-                        meas_process.append("RD")
-                    elif ck == 1:
                         meas_process.append("FD")
+                    elif ck == 1:
+                        meas_process.append("RD")
                     elif ck == 2:
-                        meas_process.append("RL")
-                    elif ck == 3:
                         meas_process.append("FL")
+                    elif ck == 3:
+                        meas_process.append("RL")
                     else:
                         pass
             self.jv_multiplex_setup(meas_process)
