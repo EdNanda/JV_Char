@@ -596,7 +596,7 @@ class MainWindow(QtWidgets.QMainWindow):
             self.multiplex.setEnabled(False)
         else:
             self.is_multiplex = True
-            self.sam_area.setEnabled(False) #TODO test this
+            self.sam_area.setEnabled(False)
 
 
         if self.is_susi:
