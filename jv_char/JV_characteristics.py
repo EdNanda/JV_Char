@@ -115,7 +115,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.statusBar().showMessage("Program by Edgar Nandayapa - 2022", 10000)
 
         try:
-            self.relaycard = relay_card.connect('COM4')
+            self.relaycard = relay_card.connect('COM3')
             #print(f'Firmware version: {self.relaycard.firmware_version}')
             self.relaycard.factory_reset()
             self.is_relay = True
@@ -146,7 +146,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
         try:
             # susi = serial.Serial()  # open serial port
-            self.susi = serial.Serial("COM3")
+            self.susi = serial.Serial("COM5")
             self.susi.baudrate = 9600
             self.susi.bytesize = 8
             self.susi.parity = 'N'
@@ -279,7 +279,7 @@ class MainWindow(QtWidgets.QMainWindow):
         # Set widget texts
         self.volt_start.setText("-0.2")
         self.volt_end.setText("1.2")
-        self.volt_step.setText("0.1")
+        self.volt_step.setText("0.02")
         self.ave_pts.setText("2")
         self.int_time.setText("0.1")
         self.set_time.setText("0.1")
@@ -918,9 +918,10 @@ class MainWindow(QtWidgets.QMainWindow):
 
 
     def keithley_startup_setup(self): # TODO keithley configuration
+        self.two_four_wires_measurement()
         curr_limit = float(self.curr_lim.text())
-        self.keithley.apply_voltage(compliance_current = curr_limit / 1000)
-        self.keithley.measure_current(nplc=4, current=0.3, auto_range=False)
+        # self.keithley.apply_voltage(compliance_current = curr_limit / 1000)
+        self.keithley.measure_current(nplc=4, current=curr_limit / 1000, auto_range=True)
         self.keithley.auto_zero = "ONCE"
         # self.keithley.current_filter_count = int(self.ave_pts.text())
 
@@ -960,7 +961,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
         # Fit datapoint around Jsc to get Shunt(parallel) resistance
         reg_par = LinearRegression()
-        co = 1 #Change here to increase number of fitted points (co=1 -> 3 points)
+        co = 1 #Change here to increase number of fitted points (co=1 -> 3 points)# TODO shunt: linear regression
         try:
             v_par = volt[v0 - co: v0 + co].reshape(-1, 1)
             c_par = curr[v0 - co: v0 + co].reshape(-1, 1)
@@ -1269,13 +1270,16 @@ class MainWindow(QtWidgets.QMainWindow):
 
 
     def get_areas(self):
+        print("get_areas")
         if self.is_multiplex:
+            print("multipley")
             area = []
             multi = [self.area_a,self.area_b,self.area_c,self.area_d,self.area_e,self.area_f]
 
             for m in multi:
                 area.append(float(m.text()))
         else:
+            print("straight")
             area = float(self.sam_area.text())
 
         return area
@@ -1384,7 +1388,7 @@ class MainWindow(QtWidgets.QMainWindow):
             # print(mpr)
             self.is_first_plot = True
             if "D" in mpr:  # if it is a dark measurement
-                if self.is_susi and self.is_shutter_open:
+                if self.is_susi and self.is_shutter_open and self.is_meas_live:
                     self.susi_shutter_close()
                 ilum = "Dark"
             else:
