@@ -1269,7 +1269,7 @@ class MainWindow(QtWidgets.QMainWindow):
             pass
 
 
-    def get_areas(self)
+    def get_areas(self):
         if self.is_multiplex:
             area = []
             multi = [self.area_a,self.area_b,self.area_c,self.area_d,self.area_e,self.area_f]
