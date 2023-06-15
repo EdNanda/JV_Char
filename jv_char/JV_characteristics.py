@@ -115,7 +115,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.statusBar().showMessage("Program by Edgar Nandayapa - 2022", 10000)
 
         try:
-            self.relaycard = relay_card.connect('COM3')
+            self.relaycard = relay_card.connect('COM5')
             #print(f'Firmware version: {self.relaycard.firmware_version}')
             self.relaycard.factory_reset()
             self.is_relay = True
@@ -146,7 +146,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
         try:
             # susi = serial.Serial()  # open serial port
-            self.susi = serial.Serial("COM5")
+            self.susi = serial.Serial("COM3")
             self.susi.baudrate = 9600
             self.susi.bytesize = 8
             self.susi.parity = 'N'
@@ -920,8 +920,8 @@ class MainWindow(QtWidgets.QMainWindow):
     def keithley_startup_setup(self): # TODO keithley configuration
         self.two_four_wires_measurement()
         curr_limit = float(self.curr_lim.text())
-        # self.keithley.apply_voltage(compliance_current = curr_limit / 1000)
-        self.keithley.measure_current(nplc=4, current=curr_limit / 1000, auto_range=True)
+        self.keithley.apply_voltage(compliance_current = curr_limit / 1000)
+        self.keithley.measure_current(nplc=4, current=curr_limit / 1000, auto_range=False)
         self.keithley.auto_zero = "ONCE"
         # self.keithley.current_filter_count = int(self.ave_pts.text())
 
@@ -1269,17 +1269,14 @@ class MainWindow(QtWidgets.QMainWindow):
             pass
 
 
-    def get_areas(self):
-        print("get_areas")
+    def get_areas(self)
         if self.is_multiplex:
-            print("multipley")
             area = []
             multi = [self.area_a,self.area_b,self.area_c,self.area_d,self.area_e,self.area_f]
 
             for m in multi:
                 area.append(float(m.text()))
         else:
-            print("straight")
             area = float(self.sam_area.text())
 
         return area
