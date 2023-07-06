@@ -283,7 +283,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.ave_pts.setText("2")
         self.int_time.setText("0.1")
         self.set_time.setText("0.1")
-        self.curr_lim.setText("300")
+        self.curr_lim.setText("100")
         self.sam_area.setText("1.0")
         self.pow_dens.setText("100")
         # self.sun_ref.setText("74")
@@ -921,9 +921,10 @@ class MainWindow(QtWidgets.QMainWindow):
         self.two_four_wires_measurement()
         curr_limit = float(self.curr_lim.text())
         self.keithley.apply_voltage(compliance_current = curr_limit / 1000)
-        self.keithley.measure_current(nplc=4, current=curr_limit / 1000, auto_range=False)
+        # self.keithley.apply_voltage(voltage_range=2, compliance_current = curr_limit / 1000)
+        self.keithley.measure_current(nplc=10, current=curr_limit / 1000, auto_range=False)
         self.keithley.auto_zero = "ONCE"
-        # self.keithley.current_filter_count = int(self.ave_pts.text())
+        #self.keithley.current_filter_count = int(self.ave_pts.text())
 
     def test_actual_current(self):
         self.keithley_startup_setup()
@@ -1141,7 +1142,7 @@ class MainWindow(QtWidgets.QMainWindow):
     def log_susi_save(self, intensity):
         logpath = "C:\\Data\\susi_log.txt"
 
-        df = pd.read_csv(logpath, index_col=None)
+        df = pd.read_csv(logpath, index_col=None,delimiter="\t")
         df = self.log_susi_newinput(intensity, df)
         df.to_csv(logpath, index=False, sep="\t")
 
@@ -1593,6 +1594,8 @@ class MainWindow(QtWidgets.QMainWindow):
 
             self.read_measurement_type() #This starts the measurement process
 
+            self.susi_shutter_close()
+
             if self.is_jv_measurement or self.is_recipe:
                 try:
                     self.fix_jv_chars_for_save()
@@ -1606,7 +1609,6 @@ class MainWindow(QtWidgets.QMainWindow):
                 self.popup_message("MPP measurement done")
 
             self.save_data()
-            self.susi_shutter_close()
             self.keithley.disable_source()
 
             self.is_meas_live = False
