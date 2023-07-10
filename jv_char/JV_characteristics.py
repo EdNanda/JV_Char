@@ -1521,11 +1521,10 @@ class MainWindow(QtWidgets.QMainWindow):
             meas_currents = []
             meas_voltages = []
 
+            self.keithley.source_voltage = i
+            QtTest.QTest.qWait(int(time_s * 1000))
             for t in range(average_points):
-                self.keithley.source_voltage = i
-
                 if self.is_meas_live:
-                    QtTest.QTest.qWait(int(time_s * 1000))
                     meas_voltages.append(i)
                     meas_currents.append(self.keithley.current * 1000 / area)
                 else:
