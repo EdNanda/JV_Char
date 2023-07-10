@@ -280,7 +280,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.volt_start.setText("-0.2")
         self.volt_end.setText("1.2")
         self.volt_step.setText("0.02")
-        self.ave_pts.setText("2")
+        self.ave_pts.setText("3")
         self.int_time.setText("0.1")
         self.set_time.setText("0.1")
         self.curr_lim.setText("100")
@@ -948,6 +948,12 @@ class MainWindow(QtWidgets.QMainWindow):
             self.is_recipe = True
             self.measurement_process(text.upper())
 
+    def find_nearest(self, array, value):
+        array = np.asarray(array)
+        idx = (np.abs(array - value)).argmin()
+        return idx
+
+
     def jv_chars_calculation(self, volt, curr):
         # Find Isc (find voltage value closest to 0 Volts)
         volt = np.array(volt)
@@ -962,13 +968,19 @@ class MainWindow(QtWidgets.QMainWindow):
 
         # Fit datapoint around Jsc to get Shunt(parallel) resistance
         reg_par = LinearRegression()
-        co = 1 #Change here to increase number of fitted points (co=1 -> 3 points)# TODO shunt: linear regression
-        try:
-            v_par = volt[v0 - co: v0 + co].reshape(-1, 1)
-            c_par = curr[v0 - co: v0 + co].reshape(-1, 1)
-        except:
-            v_par = volt[v0 : v0 + co].reshape(-1, 1)
-            c_par = curr[v0 : v0 + co].reshape(-1, 1)
+        # co = 1 #Change here to increase number of fitted points (co=1 -> 3 points)
+        # try:
+        #     v_par = volt[v0 - co: v0 + co].reshape(-1, 1)
+        #     c_par = curr[v0 - co: v0 + co].reshape(-1, 1)
+        # except:
+        #     v_par = volt[v0 : v0 + co].reshape(-1, 1)
+        #     c_par = curr[v0 : v0 + co].reshape(-1, 1)
+
+        lr_volt = 0.2
+        p_pos = int(self.find_nearest(volt, value=lr_volt))
+        n_pos = int(self.find_nearest(volt, value=-lr_volt))
+        v_par = volt[n_pos: p_pos].reshape(-1, 1)
+        c_par = curr[n_pos: p_pos].reshape(-1, 1)
 
         reg_par.fit(v_par, c_par)
         m_i = reg_par.coef_[0][0]
@@ -1521,11 +1533,10 @@ class MainWindow(QtWidgets.QMainWindow):
             meas_currents = []
             meas_voltages = []
 
+            QtTest.QTest.qWait(int(time_s * 1000))
+            self.keithley.source_voltage = i
             for t in range(average_points):
-                self.keithley.source_voltage = i
-
                 if self.is_meas_live:
-                    QtTest.QTest.qWait(int(time_s * 1000))
                     meas_voltages.append(i)
                     meas_currents.append(self.keithley.current * 1000 / area)
                 else:
