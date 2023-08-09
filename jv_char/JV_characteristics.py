@@ -37,6 +37,8 @@ class TableModel(QAbstractTableModel):
         self.highlight_row = ""
         if self._data.shape[0] > 1 and self._data["PCE\n(%)"].max != 0:
             self.highlight_row = self._data.index.get_loc(self._data["PCE\n(%)"].astype("float").idxmax())
+        else:
+            pass
             # print(self.highlight_row)
 
     def data(self, index, role):
@@ -932,7 +934,7 @@ class MainWindow(QtWidgets.QMainWindow):
         curr_limit = float(self.curr_lim.text())
         self.keithley.apply_voltage(compliance_current = curr_limit / 1000)
         # self.keithley.apply_voltage(voltage_range=2, compliance_current = curr_limit / 1000)
-        self.keithley.measure_current(nplc=10, current=curr_limit / 1000, auto_range=False)
+        self.keithley.measure_current(nplc=5, current=curr_limit / 1000, auto_range=False)
         self.keithley.auto_zero = "ONCE"
         #self.keithley.current_filter_count = int(self.ave_pts.text())
 
@@ -1406,9 +1408,11 @@ class MainWindow(QtWidgets.QMainWindow):
     def soaking_process(self):
         light = int(self.light_soak.text())
         bias = float(self.bias_soak.text())
-
+        self.keithley.source_voltage = 0
         self.susi_shutter_open()
+        print(light, bias)
         self.keithley.source_voltage = bias
+        #self.keithley.source_voltage = bias
         QtTest.QTest.qWait(int(light * 1000))
 
 
@@ -1553,8 +1557,8 @@ class MainWindow(QtWidgets.QMainWindow):
             meas_currents = []
             meas_voltages = []
 
-            QtTest.QTest.qWait(int(time_s * 1000))
             self.keithley.source_voltage = i
+            QtTest.QTest.qWait(int(time_s * 1000)) #Settling time
             for t in range(average_points):
                 if self.is_meas_live:
                     meas_voltages.append(i)
