@@ -258,6 +258,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self.sam_area = QLineEdit()
         self.pow_dens = QLineEdit()
         self.cell_num = QLineEdit()
+        self.light_soak = QLineEdit()
+        self.bias_soak = QLineEdit()
         self.susi_intensity = QLineEdit() #This is needed for susi popup (repeated)
         # self.sun_ref = QLineEdit()
         self.curr_ref = QLabel("0\n0%")
@@ -274,6 +276,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self.sam_area.setMaximumWidth(sMW)
         self.pow_dens.setMaximumWidth(sMW)
         self.cell_num.setMaximumWidth(sMW)
+        self.light_soak.setMaximumWidth(sMW)
+        self.bias_soak.setMaximumWidth(sMW)
         # self.sun_ref.setMaximumWidth(sMW)
 
         # Set widget texts
@@ -286,6 +290,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self.curr_lim.setText("100")
         self.sam_area.setText("1.0")
         self.pow_dens.setText("100")
+        self.light_soak.setText("0")
+        self.bias_soak.setText("0")
         # self.sun_ref.setText("74")
         # self.cell_num.setText("1")#module
 
@@ -303,12 +309,16 @@ class MainWindow(QtWidgets.QMainWindow):
         #LsetParameters.addWidget(self.int_time, 3, 1, Qt.AlignLeft)
         LsetParameters.addWidget(QLabel("Settling time (s)"), 3, 2, Qt.AlignRight)
         LsetParameters.addWidget(self.set_time, 3, 3, Qt.AlignLeft)
-        LsetParameters.addWidget(QLabel("Current Limit (mA)"), 4, 0, Qt.AlignRight)
-        LsetParameters.addWidget(self.curr_lim, 4, 1, Qt.AlignLeft)
+        LsetParameters.addWidget(QLabel("Light soaking (s)"), 3, 0, Qt.AlignRight)
+        LsetParameters.addWidget(self.light_soak, 3, 1, Qt.AlignLeft)
+        LsetParameters.addWidget(QLabel("Pre-biasing (V)"), 4, 0, Qt.AlignRight)
+        LsetParameters.addWidget(self.bias_soak, 4, 1, Qt.AlignLeft)
         LsetParameters.addWidget(QLabel("Cell area (cm²)"), 4, 2, Qt.AlignRight)
         LsetParameters.addWidget(self.sam_area, 4, 3, Qt.AlignLeft)
         LsetParameters.addWidget(QLabel("Power Density (mW/cm²)"), 5, 0, Qt.AlignRight)
         LsetParameters.addWidget(self.pow_dens, 5, 1, Qt.AlignLeft)
+        LsetParameters.addWidget(QLabel("Current Limit (mA)"), 5, 2, Qt.AlignRight)
+        LsetParameters.addWidget(self.curr_lim, 5, 3, Qt.AlignLeft)
 
         # Third set of setup values
         sbb = 15
@@ -1392,8 +1402,18 @@ class MainWindow(QtWidgets.QMainWindow):
             self.is_meas_live = False
         self.susi_shutter_close()
 
+
+    def soaking_process(self):
+        light = int(self.light_soak.text())
+        bias = float(self.bias_soak.text())
+
+        self.susi_shutter_open()
+        self.keithley.source_voltage = bias
+        QtTest.QTest.qWait(int(light * 1000))
+
+
     def jv_perform_measurement(self, meas_process, forwa_vars, rever_vars, fixed_vars, cell_name, cn=0, cell=""):
-        # while self.is_meas_live:
+        self.soaking_process()
         for ck, mpr in enumerate(meas_process):
             # print(mpr)
             self.is_first_plot = True
