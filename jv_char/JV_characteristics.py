@@ -1406,13 +1406,11 @@ class MainWindow(QtWidgets.QMainWindow):
 
 
     def soaking_process(self):
-        light = int(self.light_soak.text())
+        light = int(self.light_soak.text())  # Read values
         bias = float(self.bias_soak.text())
-        self.keithley.source_voltage = 0
+        self.keithley.source_voltage = 0  # Set to zero
         self.susi_shutter_open()
-        print(light, bias)
-        self.keithley.source_voltage = bias
-        #self.keithley.source_voltage = bias
+        self.keithley.source_voltage = bias  # Set the wanted bias
         QtTest.QTest.qWait(int(light * 1000))
 
 
