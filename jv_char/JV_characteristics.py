@@ -116,7 +116,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.statusBar().showMessage("Program by Edgar Nandayapa - 2022", 10000)
 
-        try:
+        try: #  Relay card configuration
             self.relaycard = relay_card.connect('COM5')
             #print(f'Firmware version: {self.relaycard.firmware_version}')
             self.relaycard.factory_reset()
@@ -127,15 +127,11 @@ class MainWindow(QtWidgets.QMainWindow):
                 self.relays.append(self.relaycard.relays[r])
         except:
             ports = serial.tools.list_ports.comports()
-
-            # for port, desc, hwid in sorted(ports):
-            #     print("{}: {} [{}]".format(port, desc, hwid))
             self.is_relay = False
             print("relay not found")
 
 
-        try:
-            # Modify this in case multiple keithley
+        try: #  Keithley configuration
             rm = visa.ResourceManager()  # Load piVisa
             print(rm.list_resources())
             device = rm.list_resources()[0]  # Get the first keithley on the list
@@ -146,9 +142,8 @@ class MainWindow(QtWidgets.QMainWindow):
             self.keithley = None
             self.statusBar().showMessage("##    Keithley not found    ##")
 
-        try:
-            # susi = serial.Serial()  # open serial port
-            self.susi = serial.Serial("COM3")
+        try: #  SUSI configuration
+            self.susi = serial.Serial("COM4")
             self.susi.baudrate = 9600
             self.susi.bytesize = 8
             self.susi.parity = 'N'
@@ -156,7 +151,6 @@ class MainWindow(QtWidgets.QMainWindow):
             self.susi.timeout = 5
             self.is_susi = True
             self.is_shutter_open = False
-
 
         except:
             self.is_susi = False
@@ -770,10 +764,9 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def two_four_wires_measurement(self):
         if self.four_wire.isChecked():
-            self.keithley.wires = 4
+            self.keithley.write("SENS:CURR:RSEN ON")
         else:
-            self.keithley.wires = 2
-        # print(self.keithley.wires)
+            self.keithley.write("SENS:CURR:RSEN OFF")
 
     def multiplexing_allow(self):
         fields = [self.area_a, self.area_b, self.area_c, self.area_d, self.area_e, self.area_f,
