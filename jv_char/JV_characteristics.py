@@ -37,6 +37,8 @@ class TableModel(QAbstractTableModel):
         self.highlight_row = ""
         if self._data.shape[0] > 1 and self._data["PCE\n(%)"].max != 0:
             self.highlight_row = self._data.index.get_loc(self._data["PCE\n(%)"].astype("float").idxmax())
+        else:
+            pass
             # print(self.highlight_row)
 
     def data(self, index, role):
@@ -258,6 +260,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self.sam_area = QLineEdit()
         self.pow_dens = QLineEdit()
         self.cell_num = QLineEdit()
+        self.light_soak = QLineEdit()
+        self.bias_soak = QLineEdit()
         self.susi_intensity = QLineEdit() #This is needed for susi popup (repeated)
         # self.sun_ref = QLineEdit()
         self.curr_ref = QLabel("0\n0%")
@@ -274,6 +278,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self.sam_area.setMaximumWidth(sMW)
         self.pow_dens.setMaximumWidth(sMW)
         self.cell_num.setMaximumWidth(sMW)
+        self.light_soak.setMaximumWidth(sMW)
+        self.bias_soak.setMaximumWidth(sMW)
         # self.sun_ref.setMaximumWidth(sMW)
 
         # Set widget texts
@@ -286,6 +292,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self.curr_lim.setText("100")
         self.sam_area.setText("1.0")
         self.pow_dens.setText("100")
+        self.light_soak.setText("0")
+        self.bias_soak.setText("0")
         # self.sun_ref.setText("74")
         # self.cell_num.setText("1")#module
 
@@ -303,12 +311,16 @@ class MainWindow(QtWidgets.QMainWindow):
         #LsetParameters.addWidget(self.int_time, 3, 1, Qt.AlignLeft)
         LsetParameters.addWidget(QLabel("Settling time (s)"), 3, 2, Qt.AlignRight)
         LsetParameters.addWidget(self.set_time, 3, 3, Qt.AlignLeft)
-        LsetParameters.addWidget(QLabel("Current Limit (mA)"), 4, 0, Qt.AlignRight)
-        LsetParameters.addWidget(self.curr_lim, 4, 1, Qt.AlignLeft)
+        LsetParameters.addWidget(QLabel("Light soaking (s)"), 3, 0, Qt.AlignRight)
+        LsetParameters.addWidget(self.light_soak, 3, 1, Qt.AlignLeft)
+        LsetParameters.addWidget(QLabel("Pre-biasing (V)"), 4, 0, Qt.AlignRight)
+        LsetParameters.addWidget(self.bias_soak, 4, 1, Qt.AlignLeft)
         LsetParameters.addWidget(QLabel("Cell area (cm²)"), 4, 2, Qt.AlignRight)
         LsetParameters.addWidget(self.sam_area, 4, 3, Qt.AlignLeft)
         LsetParameters.addWidget(QLabel("Power Density (mW/cm²)"), 5, 0, Qt.AlignRight)
         LsetParameters.addWidget(self.pow_dens, 5, 1, Qt.AlignLeft)
+        LsetParameters.addWidget(QLabel("Current Limit (mA)"), 5, 2, Qt.AlignRight)
+        LsetParameters.addWidget(self.curr_lim, 5, 3, Qt.AlignLeft)
 
         # Third set of setup values
         sbb = 15
@@ -922,7 +934,7 @@ class MainWindow(QtWidgets.QMainWindow):
         curr_limit = float(self.curr_lim.text())
         self.keithley.apply_voltage(compliance_current = curr_limit / 1000)
         # self.keithley.apply_voltage(voltage_range=2, compliance_current = curr_limit / 1000)
-        self.keithley.measure_current(nplc=10, current=curr_limit / 1000, auto_range=False)
+        self.keithley.measure_current(nplc=5, current=curr_limit / 1000, auto_range=False)
         self.keithley.auto_zero = "ONCE"
         #self.keithley.current_filter_count = int(self.ave_pts.text())
 
@@ -1392,8 +1404,18 @@ class MainWindow(QtWidgets.QMainWindow):
             self.is_meas_live = False
         self.susi_shutter_close()
 
+
+    def soaking_process(self):
+        light = int(self.light_soak.text())  # Read values
+        bias = float(self.bias_soak.text())
+        self.keithley.source_voltage = 0  # Set to zero
+        self.susi_shutter_open()
+        self.keithley.source_voltage = bias  # Set the wanted bias
+        QtTest.QTest.qWait(int(light * 1000))
+
+
     def jv_perform_measurement(self, meas_process, forwa_vars, rever_vars, fixed_vars, cell_name, cn=0, cell=""):
-        # while self.is_meas_live:
+        self.soaking_process()
         for ck, mpr in enumerate(meas_process):
             # print(mpr)
             self.is_first_plot = True
@@ -1533,8 +1555,8 @@ class MainWindow(QtWidgets.QMainWindow):
             meas_currents = []
             meas_voltages = []
 
-            QtTest.QTest.qWait(int(time_s * 1000))
             self.keithley.source_voltage = i
+            QtTest.QTest.qWait(int(time_s * 1000)) #Settling time
             for t in range(average_points):
                 if self.is_meas_live:
                     meas_voltages.append(i)
