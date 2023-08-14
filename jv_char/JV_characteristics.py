@@ -1051,7 +1051,8 @@ class MainWindow(QtWidgets.QMainWindow):
         if self.is_susi:
             self.susi.write(b'C1')  # Enable cooling
             QtTest.QTest.qWait(int(1 * 1000))
-            self.susi.write(b'L1')  # Light On
+            for i in range(4): #  Because just once does not work
+                self.susi.write(b'L1')  # Light On
             QtTest.QTest.qWait(int(2 * 1000))
             self.susi_startup_intensity()
             QtTest.QTest.qWait(int(1 * 1000))
@@ -1059,7 +1060,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def susi_shutdown(self):
         reply = QMessageBox.question(self, 'Turn SuSi off', 'Are you sure you want to turn the SuSi off?',
-                                     QMessageBox.Yes | QMessageBox.No)#, QMessageBox.No)
+                                     QMessageBox.Yes | QMessageBox.No)# QMessageBox.No)
         if reply == QMessageBox.Yes:
             self.susi_shutter_close()
             QtTest.QTest.qWait(int(1 * 1000))
