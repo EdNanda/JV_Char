@@ -9,7 +9,7 @@ from PyQt5.QtWidgets import QFrame, QPushButton, QCheckBox, QLabel, QToolButton,
 from PyQt5.QtWidgets import QSizePolicy, QMessageBox, QDialog,QInputDialog
 from PyQt5.QtGui import QFont, QColor, QPixmap
 from PyQt5.QtWidgets import QTableView
-from PyQt5.QtCore import QAbstractTableModel, Qt
+from PyQt5.QtCore import QAbstractTableModel, Qt, QTimer
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg, NavigationToolbar2QT as NavigationToolbar
 from matplotlib.figure import Figure
 from matplotlib import rcParams
@@ -35,9 +35,12 @@ class TableModel(QAbstractTableModel):
         super(TableModel, self).__init__()
         self._data = data
         self.highlight_row = ""
-        if self._data.shape[0] > 1 and self._data["PCE\n(%)"].max != 0:
-            self.highlight_row = self._data.index.get_loc(self._data["PCE\n(%)"].astype("float").idxmax())
-        else:
+        try:
+            if self._data.shape[0] > 1 and self._data["PCE\n(%)"].max != 0:
+                self.highlight_row = self._data.index.get_loc(self._data["PCE\n(%)"].astype("float").idxmax())
+            else:
+                pass
+        except:
             pass
             # print(self.highlight_row)
 
@@ -108,6 +111,8 @@ class MainWindow(QtWidgets.QMainWindow):
         super(MainWindow, self).__init__(*args, **kwargs)
 
         # Initialize parameters
+        #self.temp_sensor = np.nan
+        self.gui_temp_timer = QTimer(self)
         self.setWindowTitle("JV Characteristics")
         folder = os.path.abspath(os.getcwd()) + "\\"
         self.setWindowIcon(QtGui.QIcon(folder + "solar.ico"))
@@ -165,6 +170,13 @@ class MainWindow(QtWidgets.QMainWindow):
                 self.statusBar().showMessage("##    susi not found    ##")
                 self.popup_message("    susi\n"
                                    "was not found")
+
+        try:  # arduino temperature sensor configuration
+            self.senseTemp = serial.Serial('COM7', 9600, timeout=1)
+            self.is_temperature_sensor = True
+        except:
+            self.is_temperature_sensor = False
+
 
         self.create_widgets()
 
@@ -345,6 +357,7 @@ class MainWindow(QtWidgets.QMainWindow):
         label_rev.setFont(QFont("Arial", 14))
         self.label_currcurr = QLabel("")
         self.label_currvolt = QLabel("")
+        self.label_tempsens = QLabel("")
         # self.refPower.setMaximumWidth(sMW*2)
 
         LsetProcess = QGridLayout()
@@ -444,7 +457,9 @@ class MainWindow(QtWidgets.QMainWindow):
         LsetStart.addWidget(self.BStart, 1, 0, 1, 4)
         LsetStart.addWidget(self.label_currvolt, 2, 0, 1, 1)
         LsetStart.addWidget(self.label_currcurr, 3, 0, 1, 1)
-        # Lsetup.addRow(" ",QFrame())
+        LsetStart.addWidget(QLabel("Substrate Temp."), 2, 3, 1, 1, Qt.AlignRight)
+        LsetStart.addWidget(self.label_tempsens, 3, 3, 1, 1, Qt.AlignRight)
+        LsetStart.addWidget(QLabel(" "), 4, 0)
 
         LsetMPP = QGridLayout()
 
@@ -508,11 +523,11 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.setup_labs_jv = ["Sample", "User", "Folder", "Voltage_start (V)", "Voltage_end (V)", "Voltage_step (V)",
                               "Averaged Points", "Integration time(s)", "Setting time (s)", "Current limit (mA)",
-                              "Cell area(cm²)",
+                              "Cell area(cm²)", "Light soaking (s)", "Soaking bias (V)",
                               "Power Density (mW/cm²)"]#, "Sun Reference (mA)"]
         self.setup_vals_jv = [self.LEsample, self.LEuser, self.LEfolder, self.volt_start,
                               self.volt_end, self.volt_step, self.ave_pts, self.int_time, self.set_time, self.curr_lim,
-                              self.sam_area,
+                              self.sam_area, self.light_soak, self.bias_soak,
                               self.pow_dens]#, self.sun_ref]
         self.setup_labs_mpp = ["Sample", "User", "Folder", "Total time (s)", "Integration time (ms)",
                                "Voltage_step (V)",
@@ -596,6 +611,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.other_buttons = [self.for_bmL, self.rev_bmL, self.for_bmD, self.rev_bmD, self.four_wire,  # self.logyaxis,
                               self.BsaveM, self.BloadM, self.Bsusi_intensity]
 
+
         if not self.is_relay:
             self.multiplex.setChecked(False)
             self.multiplexing_allow()
@@ -609,6 +625,13 @@ class MainWindow(QtWidgets.QMainWindow):
             self.susi_startup()
         else:
             self.disable_susi()
+
+        self.update_gui_temperature()
+        if self.is_temperature_sensor:
+            self.gui_temp_timer.timeout.connect(self.update_gui_temperature)
+            self.gui_temp_timer.start(10*1000)  # Update every half minute
+        else:
+            self.label_tempsens.setText("-- °C")
 
     def button_actions(self):
         self.folder = self.LEfolder.text()
@@ -828,7 +851,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def fix_jv_chars_for_save(self):
         names = ["Voc (V)", "Jsc (mA/cm2)", "FF (%)", "PCE (%)", "V_mpp (V)", "J_mpp (mA/cm2)", "P_mpp (mW/cm2)",
-                 "R_series (Ohm cm2)", "R_shunt (Ohm cm2)", "Time"]
+                 "R_series (Ohm cm2)", "R_shunt (Ohm cm2)", "Temperature (°C)", "Time"]
         names_f = [na.replace(" ", "") for na in names]
         # names_t = [na.replace(" ","\n") for na in names]
         # empty = ["","","","","","","","",""]
@@ -838,7 +861,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def jv_char_qtabledisplay(self):
         names = ["Voc (V)", "Jsc (mA/cm²)", "FF (%)", "PCE (%)", "V_mpp (V)", "J_mpp (mA/cm²)", "P_mpp (mW/cm²)",
-                 "R_series (\U00002126cm²)", "R_shunt (\U00002126cm²)", "Time"]
+                 "R_series (\U00002126cm²)", "R_shunt (\U00002126cm²)", "Temperature (°C)",  "Time"]
         # names_f = [na.replace(" ","") for na in names] 
         names_t = [na.replace(" ", "\n") for na in names]
         values = self.jv_chars_results.T.copy()
@@ -1031,9 +1054,24 @@ class MainWindow(QtWidgets.QMainWindow):
 
         uhrzeit = strftime("%d.%m.%Y %H:%M:%S", gmtime())
 
-        jv_char = [voc, isc, ff, pce, mpp_v, mpp_c, mpp_p, r_ser, r_par, uhrzeit]
+        temper = self.read_temperature_sensor()
+
+        jv_char = [voc, isc, ff, pce, mpp_v, mpp_c, mpp_p, r_ser, r_par, temper, uhrzeit]
 
         return jv_char
+
+    def update_gui_temperature(self):
+        temperature = self.read_temperature_sensor()
+        self.label_tempsens.setText(str(temperature) + " °C")
+
+    def read_temperature_sensor(self):
+        if self.is_temperature_sensor:
+            temp_bin = self.senseTemp.readline().strip()   # read a byte
+            temp_sensor = float(temp_bin[-5:])
+        else:
+            temp_sensor = np.nan
+
+        return temp_sensor
 
     def susi_button(self):
         if self.is_susi:
