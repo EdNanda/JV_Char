@@ -2,9 +2,10 @@
 
 import serial
 import time
+import numpy as np
 
 # make sure the 'COM#' is set according the Windows Device Manager
-ser = serial.Serial('COM4', 9600, timeout=1)
+ser = serial.Serial('COM7', 9600, timeout=1)
 
 time.sleep(2)
 
@@ -13,6 +14,7 @@ line = ser.readline().strip()   # read a byte
 temp = float(line[-5:])
 
 print(temp)
+print(np.nan)
 # if line:
 #     print(line)
 #     string = line.decode()  # convert the byte string to a unicode string
