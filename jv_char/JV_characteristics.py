@@ -111,7 +111,6 @@ class MainWindow(QtWidgets.QMainWindow):
         super(MainWindow, self).__init__(*args, **kwargs)
 
         # Initialize parameters
-        #self.temp_sensor = np.nan
         self.gui_temp_timer = QTimer(self)
         self.setWindowTitle("JV Characteristics")
         folder = os.path.abspath(os.getcwd()) + "\\"
@@ -119,11 +118,12 @@ class MainWindow(QtWidgets.QMainWindow):
         np.seterr(divide='ignore', invalid='ignore')
         self.sample = ""
 
-        self.statusBar().showMessage("Program by Edgar Nandayapa - 2022", 10000)
+        self.statusBar().showMessage("Starting up, please wait", 10000)
 
+        port_list = self.list_com_ports() # Get all the devices names
         try: #  Relay card configuration
-            self.relaycard = relay_card.connect('COM5')
-            #print(f'Firmware version: {self.relaycard.firmware_version}')
+            relay_port_name = "USB Serial Device"
+            self.relaycard = relay_card.connect(port_list[relay_port_name])
             self.relaycard.factory_reset()
             self.is_relay = True
 
@@ -138,7 +138,6 @@ class MainWindow(QtWidgets.QMainWindow):
 
         try: #  Keithley configuration
             rm = visa.ResourceManager()  # Load piVisa
-            print(rm.list_resources())
             device = rm.list_resources()[0]  # Get the first keithley on the list
             self.keithley = Keithley2450(device)
             self.keithley.wires = 4
@@ -148,7 +147,8 @@ class MainWindow(QtWidgets.QMainWindow):
             self.statusBar().showMessage("##    Keithley not found    ##")
 
         try: #  SUSI configuration
-            self.susi = serial.Serial("COM4")
+            susi_port_name = "USB Serial Port"
+            self.susi = serial.Serial(port_list[susi_port_name])
             self.susi.baudrate = 9600
             self.susi.bytesize = 8
             self.susi.parity = 'N'
@@ -172,7 +172,8 @@ class MainWindow(QtWidgets.QMainWindow):
                                    "was not found")
 
         try:  # arduino temperature sensor configuration
-            self.senseTemp = serial.Serial('COM7', 9600, timeout=1)
+            susi_port_name = "USB-SERIAL CH340"
+            self.senseTemp = serial.Serial(port_list[susi_port_name], 9600, timeout=1)
             self.is_temperature_sensor = True
         except:
             self.is_temperature_sensor = False
@@ -622,9 +623,12 @@ class MainWindow(QtWidgets.QMainWindow):
 
 
         if self.is_susi:
+            self.dis_enable_widgets(True, "jv")
             self.susi_startup()
         else:
             self.disable_susi()
+
+        self.dis_enable_widgets(False, "jv")
 
         self.update_gui_temperature()
         if self.is_temperature_sensor:
@@ -649,6 +653,14 @@ class MainWindow(QtWidgets.QMainWindow):
         self.Bsusi_on.clicked.connect(self.susi_startup)
         self.Brecipe.clicked.connect(self.recipe_popup)
         self.multiplex.stateChanged.connect(self.multiplexing_allow)
+
+    def list_com_ports(self):
+        ports = serial.tools.list_ports.comports()
+        port_dict = {}
+        for port in ports:
+            port_dict[port.description.split(' (')[0]] = port.name
+            # print(f"Port: {port.device}, Name: {port.name}, Description: {port.description}")
+        return port_dict
 
     def popup_message(self, text):
         qmes = QMessageBox.about(self, "Something happened...", text)
@@ -1340,6 +1352,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def read_measurement_type(self):
         self.empty_results_arrays()
+        self.soaking_process()
 
         if self.is_recipe:
             meas_process = self.recipe_list
@@ -1447,7 +1460,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
 
     def jv_perform_measurement(self, meas_process, forwa_vars, rever_vars, fixed_vars, cell_name, cn=0, cell=""):
-        self.soaking_process()
+        #self.soaking_process()
         for ck, mpr in enumerate(meas_process):
             # print(mpr)
             self.is_first_plot = True

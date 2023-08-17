@@ -9,6 +9,7 @@ float voltageOut;
 float temperatureC;
 float temperatureK;
 float ave_temp;
+float cloop = 50;
 
 void setup() {
   pinMode(sensorPin, INPUT);
@@ -17,15 +18,11 @@ void setup() {
 
 void loop() {
   ave_temp = 0;
-  for (int cc = 0 ; cc < 10; cc++){
-    sensorValue = analogRead(sensorPin);
-    voltageOut = (sensorValue * 5000) / 1024;
-
-    // calculate temperature for LM335
-    temperatureK = voltageOut / 10 - 13.07;
-    temperatureC = temperatureK - 466.44;
+  for (int cc = 0 ; cc < cloop; cc++){
+    temperatureK = analogRead(0) * 0.004882812 * 100;
+    temperatureC = temperatureK - 65.3 - 273.15;
     ave_temp += temperatureC;
-    delay(50);
+    delay(10);
   }
-  Serial.println(ave_temp / 10);
+  Serial.println(ave_temp / cloop);
 }

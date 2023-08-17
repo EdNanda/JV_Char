@@ -18,7 +18,6 @@ device = rm.list_resources()[0]
 
 keithley = Keithley2450(device)
 
-
 keithley.apply_voltage(compliance_current=0.3)
 keithley.measure_current(nplc=1, current=0.135, auto_range=True)
 # keithley.wires = "FOUR_WIRE"

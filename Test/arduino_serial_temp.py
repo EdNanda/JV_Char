@@ -3,9 +3,21 @@
 import serial
 import time
 import numpy as np
+import serial.tools.list_ports
+
+def list_com_ports():
+    ports = serial.tools.list_ports.comports()
+    port_dict = {}
+    for port in ports:
+        port_dict[port.description.split(' (')[0]] = port.name
+        print(f"Port: {port.device}, Name: {port.name}, Description: {port.description}")
+    return port_dict
+
+if __name__ == '__main__':
+    list_com_ports()
 
 # make sure the 'COM#' is set according the Windows Device Manager
-ser = serial.Serial('COM7', 9600, timeout=1)
+ser = serial.Serial('COM8', 9600, timeout=1)
 
 time.sleep(2)
 
