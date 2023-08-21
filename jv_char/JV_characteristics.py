@@ -1140,6 +1140,7 @@ class MainWindow(QtWidgets.QMainWindow):
         wid = QWidget()
         layout = QGridLayout()
         self.susi_intensity = QLineEdit()
+        self.susi_multiplier = QLineEdit()
         self.ref_area = QLineEdit()
         self.sun_ref = QLineEdit()
         self.Bsusi_set = QToolButton()
@@ -1152,6 +1153,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.susi_intensity.setMaximumWidth(60)
         self.ref_area.setMaximumWidth(60)
         self.sun_ref.setMaximumWidth(60)
+        self.susi_multiplier.setMaximumWidth(60)
         self.Bsusi_set.setMaximumWidth(40)
         self.bstatus.setMaximumWidth(40)
         self.Bcurrtest.setMaximumWidth(40)
@@ -1160,28 +1162,37 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.susi_intensity.setText(str(self.susi_percentage)) #May not be necessary (repeated)
         self.ref_area.setText("1")
+        self.susi_multiplier.setText("1")
         self.sun_ref.setText("130.3")
         self.Bsusi_set.setText("Set")
         self.Bcurrtest.setText("Test")
-        self.bstatus.setText("Status")
+        self.bstatus.setText("Status (CMD output)")
         self.bsave.setText("Save")
         self.bcancel.setText("Cancel")
+        self.curr_lim.setText("300")
+        self.four_wire.setChecked(True)
 
         # Active widgets
-        layout.addWidget(QLabel("Set Intensity (%):"), 0, 0)
+        layout.addWidget(QLabel("Lamp Intensity (%):"), 0, 0)
         layout.addWidget(self.susi_intensity, 0, 1)
         layout.addWidget(self.Bsusi_set, 0, 2)
-        layout.addWidget(QLabel("Range: 75-105%"), 1, 0)
-        layout.addWidget(QLabel("Ref. cell area (cm²)"), 2, 0)
-        layout.addWidget(self.ref_area, 2, 1)
-        layout.addWidget(QLabel("Ref. current (mA)"), 3, 0)
-        layout.addWidget(self.sun_ref, 3, 1)
-        layout.addWidget(QLabel("Measure Ref:"), 4, 0)
-        layout.addWidget(self.Lcurrcurr, 4, 1)
-        layout.addWidget(self.Bcurrtest, 4, 2)
-        layout.addWidget(self.bsave, 5, 0)
-        layout.addWidget(self.bcancel, 5, 2)
-        layout.addWidget(self.bstatus, 6, 0)
+        #layout.addWidget(QLabel("Spectral Mismatch:"),
+        #layout.addWidget(self.susi_multiplier,
+        layout.addWidget(QLabel("Range: 75-105%"), 1, 1, 1, 2)
+        layout.addWidget(QLabel("Current Limit (mA)"), 2, 0)
+        layout.addWidget(self.curr_lim, 2, 1, Qt.AlignLeft)
+        layout.addWidget(QLabel("4-Wire"), 3, 0)
+        layout.addWidget(self.four_wire, 3, 1)
+        layout.addWidget(QLabel("Ref. cell area (cm²)"), 4, 0)
+        layout.addWidget(self.ref_area, 4, 1)
+        layout.addWidget(QLabel("Ref. current (mA)"), 5, 0)
+        layout.addWidget(self.sun_ref, 5, 1)
+        layout.addWidget(QLabel("Measure Ref:"), 6, 0)
+        layout.addWidget(self.Lcurrcurr, 6, 1)
+        layout.addWidget(self.Bcurrtest, 6, 2)
+        layout.addWidget(self.bsave, 7, 0)
+        layout.addWidget(self.bcancel, 7, 2)
+        layout.addWidget(self.bstatus, 8, 0, 1, 3)
 
         self.dlg.setLayout(layout)
 
@@ -1226,9 +1237,15 @@ class MainWindow(QtWidgets.QMainWindow):
         return dframe
 
     def dialog_close(self):
+        self.curr_lim.setText("100")
+        self.four_wire.setChecked(False)
+        self.susi_shutter_close()
         self.dlg.close()
 
     def dialog_save(self):
+        self.curr_lim.setText("100")
+        self.four_wire.setChecked(False)
+        self.susi_shutter_close()
         intensity = self.susi_intensity.text()
         self.log_susi_save(intensity)
         self.susi_intensity.setText(intensity)
