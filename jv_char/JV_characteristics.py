@@ -13,6 +13,7 @@ from PyQt5.QtCore import QAbstractTableModel, Qt, QTimer
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg, NavigationToolbar2QT as NavigationToolbar
 from matplotlib.figure import Figure
 from matplotlib import rcParams
+from glob import glob
 from pymeasure.instruments.keithley import Keithley2450
 from sklearn.linear_model import LinearRegression
 import pyvisa as visa
@@ -120,8 +121,21 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.statusBar().showMessage("Starting up, please wait", 10000)
 
-        port_list = self.list_com_ports() # Get all the devices names
-        try: #  Relay card configuration
+        #  Keithley configuration
+        try:
+            rm = visa.ResourceManager()  # Load piVisa
+            device = rm.list_resources()[0]  # Get the first keithley on the list
+            self.keithley = Keithley2450(device)
+            self.keithley.wires = 4
+        except:
+            device = None
+            self.keithley = None
+            self.statusBar().showMessage("##    Keithley not found    ##")
+
+        port_list = self.list_com_ports()  # Get all the devices names
+
+        # Relay card configuration
+        try:
             relay_port_name = "USB Serial Device"
             self.relaycard = relay_card.connect(port_list[relay_port_name])
             self.relaycard.factory_reset()
@@ -135,18 +149,8 @@ class MainWindow(QtWidgets.QMainWindow):
             self.is_relay = False
             print("relay not found")
 
-
-        try: #  Keithley configuration
-            rm = visa.ResourceManager()  # Load piVisa
-            device = rm.list_resources()[0]  # Get the first keithley on the list
-            self.keithley = Keithley2450(device)
-            self.keithley.wires = 4
-        except:
-            device = None
-            self.keithley = None
-            self.statusBar().showMessage("##    Keithley not found    ##")
-
-        try: #  SUSI configuration
+        # SUSI configuration
+        try:
             susi_port_name = "USB Serial Port"
             self.susi = serial.Serial(port_list[susi_port_name])
             self.susi.baudrate = 9600
@@ -171,13 +175,13 @@ class MainWindow(QtWidgets.QMainWindow):
                 self.popup_message("    susi\n"
                                    "was not found")
 
-        try:  # arduino temperature sensor configuration
+        # Arduino temperature sensor configuration
+        try:
             susi_port_name = "USB-SERIAL CH340"
             self.senseTemp = serial.Serial(port_list[susi_port_name], 9600, timeout=1)
             self.is_temperature_sensor = True
         except:
             self.is_temperature_sensor = False
-
 
         self.create_widgets()
 
@@ -198,6 +202,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.is_recipe = False
         self.is_jv_measurement = False
         self.is_mpp_measurement = False
+        self.real_area = np.nan
 
         # Add a toolbar to control plotting area
         toolbar = NavigationToolbar(self.canvas, self)
@@ -532,9 +537,9 @@ class MainWindow(QtWidgets.QMainWindow):
                               self.pow_dens]#, self.sun_ref]
         self.setup_labs_mpp = ["Sample", "User", "Folder", "Total time (s)", "Integration time (ms)",
                                "Voltage_step (V)",
-                               "Starting Voltage (V)", "Cell area(cm²)"]
+                               "Starting Voltage (V)", ]
         self.setup_vals_mpp = [self.LEsample, self.LEuser, self.LEfolder, self.mpp_ttime,
-                               self.mpp_inttime, self.mpp_stepSize, self.mpp_voltage, self.sam_area]
+                               self.mpp_inttime, self.mpp_stepSize, self.mpp_voltage,]
 
         # Make a new layout and position relevant values
         LmetaSample = QFormLayout()
@@ -697,9 +702,22 @@ class MainWindow(QtWidgets.QMainWindow):
         self.LEfolder.setText(newfolder)
         self.folder = newfolder
 
+        self.automatic_fill_metadata()
+
         self.create_folder(False)
 
         self.Bpath.setEnabled(False)
+
+    def automatic_fill_metadata(self):
+        up_folder = self.folder.rsplit("/",2)[0]
+
+        jv_files = glob(up_folder+"/*/JV_*.txt")
+        jv_files.sort(key=os.path.getmtime)
+        try:
+            last_file = jv_files[-1]
+            self.load_meta(last_file)
+        except:
+            pass
 
     def create_folder(self, sample, retry=1):
         self.folder = self.LEfolder.text()
@@ -727,6 +745,21 @@ class MainWindow(QtWidgets.QMainWindow):
         else:
             pass
 
+    def find_separators_in_file(self, file_path):
+        with open(file_path, "r") as file:
+            lines = file.readlines()
+
+        positions = []
+        for index, line in enumerate(lines):
+            if line.strip() == "--":
+                positions.append(index + 1)
+                # print(f"'--' found at line {index + 1}")
+
+        if len(positions) < 1:
+            positions.append(index + 1)
+
+        return positions
+
     def save_meta(self):
         self.create_folder(False)
         self.gather_all_metadata()
@@ -734,26 +767,30 @@ class MainWindow(QtWidgets.QMainWindow):
         metadata.to_csv(self.folder + "metadata.txt", header=False, sep="\t")
         self.statusBar().showMessage("Metadata file saved successfully", 5000)
 
-    def load_meta(self):
-        folder = self.LEfolder.text()
-        metafile = QtWidgets.QFileDialog.getOpenFileName(self, "Choose your metadata file", folder)
-        if metafile:
-            metadata = pd.read_csv(metafile[0], header=None, delimiter="\t", index_col=0, nrows=21)
+    def load_meta(self, metafile=None):
+        # TODO gather_metadata (for save function) and this are not compatible...
+        try:
+            folder = self.LEfolder.text()
+            if not metafile:
+                metafile = QtWidgets.QFileDialog.getOpenFileName(self, "Choose your metadata file", folder)[0]
+                sep_sym = self.find_separators_in_file(metafile)
+
+            metadata = pd.read_csv(metafile, header=None, delimiter="\t", index_col=0, nrows=sep_sym[0])
             # print(metadata)
             labels = self.setup_labs_jv + self.exp_labels
             objects = self.setup_vals_jv + self.exp_vars
 
-        for cc, oo in enumerate(objects):
-            if labels[cc] == "Sample":
-                pass
-            else:
-                # print(cc, labels[cc])
-                # print(metadata.loc[labels[cc]])
-                oo.setText(metadata.loc[labels[cc]][1])
+            for cc, oo in enumerate(objects):
+                if labels[cc] == "Sample":
+                    pass
+                else:
+                    # print(cc, labels[cc])
+                    # print(metadata.loc[labels[cc]])
+                    oo.setText(str(metadata.loc[labels[cc]][1]))
 
-        # self.LEfolder.setText(metadata.loc["Folder"])
-
-        self.statusBar().showMessage("Metadata successfully loaded", 5000)
+            self.statusBar().showMessage("Metadata successfully loaded", 5000)
+        except:
+            self.statusBar().showMessage("Metadata file not compatible", 5000)
 
     def gather_all_metadata(self):
         self.sample = self.LEsample.text()
@@ -785,14 +822,12 @@ class MainWindow(QtWidgets.QMainWindow):
         for cc, di in enumerate(all_metaD_labs):
             self.meta_dict[di] = all_metaD_vals[cc].text()
 
+        self.meta_dict["Cell area(cm²)"] = self.real_area
         self.meta_dict["Ref. Current(mA)"] = self.Rcurrent
         self.meta_dict["Sun%"] = self.RsunP
 
         if self.is_susi:
             self.meta_dict["SuSi Intensity (%)"] = float(self.susi_intensity.text())
-
-        # for cp,ad in enumerate(addit_labl):
-        #     self.meta_dict[ad] = addit_data[cp]
 
         self.meta_dict[
             "Comments"] = self.com_labels.toPlainText()  # This field has a diffferent format than the others
@@ -1140,6 +1175,8 @@ class MainWindow(QtWidgets.QMainWindow):
         wid = QWidget()
         layout = QGridLayout()
         self.susi_intensity = QLineEdit()
+        self.curr_lim_pop = QLineEdit()
+        self.four_wire_pop = QCheckBox()
         self.susi_multiplier = QLineEdit()
         self.ref_area = QLineEdit()
         self.sun_ref = QLineEdit()
@@ -1151,6 +1188,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.bcancel = QToolButton()
 
         self.susi_intensity.setMaximumWidth(60)
+        self.curr_lim_pop.setMaximumWidth(60)
         self.ref_area.setMaximumWidth(60)
         self.sun_ref.setMaximumWidth(60)
         self.susi_multiplier.setMaximumWidth(60)
@@ -1169,7 +1207,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self.bstatus.setText("Status (CMD output)")
         self.bsave.setText("Save")
         self.bcancel.setText("Cancel")
-        self.curr_lim.setText("300")
+        self.curr_lim_pop.setText("300")
+        self.four_wire_pop.setChecked(True)
         self.four_wire.setChecked(True)
 
         # Active widgets
@@ -1180,9 +1219,9 @@ class MainWindow(QtWidgets.QMainWindow):
         #layout.addWidget(self.susi_multiplier,
         layout.addWidget(QLabel("Range: 75-105%"), 1, 1, 1, 2)
         layout.addWidget(QLabel("Current Limit (mA)"), 2, 0)
-        layout.addWidget(self.curr_lim, 2, 1, Qt.AlignLeft)
+        layout.addWidget(self.curr_lim_pop, 2, 1, Qt.AlignLeft)
         layout.addWidget(QLabel("4-Wire"), 3, 0)
-        layout.addWidget(self.four_wire, 3, 1)
+        layout.addWidget(self.four_wire_pop, 3, 1)
         layout.addWidget(QLabel("Ref. cell area (cm²)"), 4, 0)
         layout.addWidget(self.ref_area, 4, 1)
         layout.addWidget(QLabel("Ref. current (mA)"), 5, 0)
@@ -1281,6 +1320,9 @@ class MainWindow(QtWidgets.QMainWindow):
         self.susi.write(message.encode('utf-8'))  # Set light intensity
 
     def dialog_test_current(self):
+        self.four_wire.setChecked(self.four_wire_pop.isChecked()) # TODO clean this
+        self.curr_lim.setText(self.curr_lim_pop.text())
+
         self.test_actual_current()
 
         self.Lcurrcurr.setText(str(round(self.Rcurrent, 2)) + " mA")
@@ -1362,8 +1404,11 @@ class MainWindow(QtWidgets.QMainWindow):
 
             for m in multi:
                 area.append(float(m.text()))
+
         else:
             area = float(self.sam_area.text())
+
+        self.real_area = area
 
         return area
 
