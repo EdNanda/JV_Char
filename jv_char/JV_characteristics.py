@@ -1659,27 +1659,30 @@ class MainWindow(QtWidgets.QMainWindow):
         voltage = []
 
         for i in np.arange(volt_0, volt_f, step):
-            meas_currents = []
-            meas_voltages = []
+            if self.is_meas_live:
+                meas_currents = []
+                meas_voltages = []
 
-            self.keithley.source_voltage = i
-            QtTest.QTest.qWait(int(time_s * 1000)) #Settling time
-            for t in range(average_points):
-                if self.is_meas_live:
+                self.keithley.source_voltage = i
+                QtTest.QTest.qWait(int(time_s * 1000)) #Settling time
+                for t in range(average_points):
+                    # if self.is_meas_live:
                     meas_voltages.append(i)
                     meas_currents.append(self.keithley.current * 1000 / area)
-                else:
-                    meas_voltages.append(np.nan)
-                    meas_currents.append(np.nan)
-                    # pass
+                    # else:
+                    #     meas_voltages.append(np.nan)
+                    #     meas_currents.append(np.nan)
+                        # pass
 
-            ave_curr = np.mean(np.array(meas_currents))
-            self.display_live_current(ave_curr)
-            self.display_live_voltage(i)
-            current.append(ave_curr)
-            voltage.append(np.mean(meas_voltages))
+                ave_curr = np.mean(np.array(meas_currents))
+                self.display_live_current(ave_curr)
+                self.display_live_voltage(i)
+                current.append(ave_curr)
+                voltage.append(np.mean(meas_voltages))
 
-            self.plot_jv(voltage, current, mode, counter)
+                self.plot_jv(voltage, current, mode, counter)
+            else:
+                break
 
         # jv_chars = self.jv_chars_calculation(voltage, current)
         self.display_live_current(ave_curr, False)
