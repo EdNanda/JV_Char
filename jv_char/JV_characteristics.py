@@ -1329,13 +1329,12 @@ class MainWindow(QtWidgets.QMainWindow):
             print("read_measurement_type not found")
 
     def jv_multiplex_setup(self, meas_process):
-        #self.statusBar().showMessage("Measuring JV curve")
         jv_variables, _ = self.read_measurement_variables()
-        volt_begin, volt_end, volt_step, ap, time, area = jv_variables
+        volt_begin, volt_end, volt_step, ap, timef, area = jv_variables
 
         forwa_vars = [volt_begin, volt_end + volt_step * 0.95, volt_step]
         rever_vars = [volt_end, volt_begin - volt_step * 0.95, -volt_step]
-        fixed_vars = [time, ap, area]
+        fixed_vars = [timef, ap, area]
 
         if self.is_multiplex:
             cell_list = [self.cell_a, self.cell_b, self.cell_c, self.cell_d, self.cell_e, self.cell_f]
@@ -1358,7 +1357,8 @@ class MainWindow(QtWidgets.QMainWindow):
             else:
                 self.jv_perform_measurement(meas_process, forwa_vars, rever_vars, fixed_vars, cell_name)
                 self.is_meas_live = False
-
+        else:
+            self.is_meas_live = False
 
     def mpp_multiplex_setup(self):
         self.statusBar().showMessage("Tracking Maximum Power Point")
@@ -1409,47 +1409,51 @@ class MainWindow(QtWidgets.QMainWindow):
 
 
     def jv_perform_measurement(self, meas_process, forwa_vars, rever_vars, fixed_vars, cell_name, cn=0, cell=""):
-        self.soaking_process()
-        for ck, mpr in enumerate(meas_process):
-            # print(mpr)
-            self.is_first_plot = True
-            if "D" in mpr:  # if it is a dark measurement
-                if self.is_susi and self.is_shutter_open and self.is_meas_live:
-                    self.susi_shutter_close()
-                ilum = "Dark"
-            else:
-                if self.is_susi and not self.is_shutter_open:
-                    self.susi_shutter_open()
-                ilum = "Light"
-
-            if "F" in mpr:  # if it is forward
-                direc = "Forward"
-                all_vars = forwa_vars + fixed_vars + [ilum + direc]
-            else:
-                direc = "Reverse"
-                all_vars = rever_vars + fixed_vars + [ilum + direc]
-
-            volt, curr = self.curr_volt_measurement(all_vars, cn)
-
-            if self.is_recipe:
-                if not self.is_multiplex:
-                    m_name = str(ck)
+        while self.is_meas_live:
+            self.soaking_process()
+            for ck, mpr in enumerate(meas_process):
+                # print(mpr)
+                self.is_first_plot = True
+                if "D" in mpr:  # if it is a dark measurement
+                    if self.is_susi and self.is_shutter_open and self.is_meas_live:
+                        self.susi_shutter_close()
+                    ilum = "Dark"
                 else:
-                    m_name = cell_name[cn] + "-" + str(ck)
-                # rep_count += 1
-            else:
-                m_name = cell_name[cn]
+                    if self.is_susi and not self.is_shutter_open:
+                        self.susi_shutter_open()
+                    ilum = "Light"
 
-            if self.is_meas_live and ilum == "Light":
-                chars = self.jv_chars_calculation(volt, curr)
-                self.jv_chars_results["{0}_{1}_{2}".format(m_name, direc, ilum)] = chars
-                self.jv_char_qtabledisplay()
-                try:
-                    self.vmpp_value_to_tracking()
-                except:
-                    pass
-            self.curr_volt_results["Voltage (V)_" + m_name + "_" + direc + "_" + ilum] = volt
-            self.curr_volt_results["Current Density(mA/cm²)_" + m_name + "_" + direc + "_" + ilum] = curr
+                if "F" in mpr:  # if it is forward
+                    direc = "Forward"
+                    all_vars = forwa_vars + fixed_vars + [ilum + direc]
+                else:
+                    direc = "Reverse"
+                    all_vars = rever_vars + fixed_vars + [ilum + direc]
+
+                volt, curr = self.curr_volt_measurement(all_vars, cn)
+
+                if self.is_recipe:
+                    if not self.is_multiplex:
+                        m_name = str(ck)
+                    else:
+                        m_name = cell_name[cn] + "-" + str(ck)
+                    # rep_count += 1
+                else:
+                    m_name = cell_name[cn]
+
+                if self.is_meas_live and ilum == "Light":
+                    chars = self.jv_chars_calculation(volt, curr)
+                    self.jv_chars_results["{0}_{1}_{2}".format(m_name, direc, ilum)] = chars
+                    self.jv_char_qtabledisplay()
+                    try:
+                        self.vmpp_value_to_tracking()
+                    except:
+                        pass
+                self.curr_volt_results["Voltage (V)_" + m_name + "_" + direc + "_" + ilum] = volt
+                self.curr_volt_results["Current Density(mA/cm²)_" + m_name + "_" + direc + "_" + ilum] = curr
+        else:
+            if self.is_susi and self.is_shutter_open and self.is_meas_live:
+                self.susi_shutter_close()
 
 
     def mpp_perform_measurement(self, mpp_variables,cell_name, cn=0, cell=''):
