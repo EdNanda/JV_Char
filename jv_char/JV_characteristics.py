@@ -1457,20 +1457,22 @@ class MainWindow(QtWidgets.QMainWindow):
             cell_list = [self.cell_g]
             cell_name = [""]
 
-        while self.is_meas_live:
-            if self.is_multiplex:
-                areas = self.get_areas()
-                for cn, cell in enumerate(cell_list):
-                    fixed_vars[-1] = areas[cn]
-                    if cell.isChecked():
-                        self.relays[cn].on()
-                        self.jv_perform_measurement(meas_process, forwa_vars, rever_vars, fixed_vars, cell_name, cn, cell)
-                        self.relays[cn].off()
-                self.is_meas_live = False
+        if self.is_multiplex:
+            areas = self.get_areas()
+            for cn, cell in enumerate(cell_list):
+                fixed_vars[-1] = areas[cn]
+                if cell.isChecked() and self.is_meas_live:
+                    self.relays[cn].on()
+                    self.jv_perform_measurement(meas_process, forwa_vars, rever_vars, fixed_vars, cell_name, cn, cell)
+                    self.relays[cn].off()
+                else:
+                    self.relays[cn].off()
+                    break
+            self.is_meas_live = False
 
-            else:
-                self.jv_perform_measurement(meas_process, forwa_vars, rever_vars, fixed_vars, cell_name)
-                self.is_meas_live = False
+        else:
+            self.jv_perform_measurement(meas_process, forwa_vars, rever_vars, fixed_vars, cell_name)
+            self.is_meas_live = False
 
 
     def mpp_multiplex_setup(self):
@@ -1561,8 +1563,11 @@ class MainWindow(QtWidgets.QMainWindow):
                     self.vmpp_value_to_tracking()
                 except:
                     pass
-            self.curr_volt_results["Voltage (V)_" + m_name + "_" + direc + "_" + ilum] = volt
-            self.curr_volt_results["Current Density(mA/cm²)_" + m_name + "_" + direc + "_" + ilum] = curr
+            try:
+                self.curr_volt_results["Voltage (V)_" + m_name + "_" + direc + "_" + ilum] = volt
+                self.curr_volt_results["Current Density(mA/cm²)_" + m_name + "_" + direc + "_" + ilum] = curr
+            except:
+                pass
 
 
     def mpp_perform_measurement(self, mpp_variables,cell_name, cn=0, cell=''):
@@ -1657,6 +1662,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
         current = []
         voltage = []
+        ave_curr = 0
 
         for i in np.arange(volt_0, volt_f, step):
             if self.is_meas_live:
@@ -1684,7 +1690,6 @@ class MainWindow(QtWidgets.QMainWindow):
             else:
                 break
 
-        # jv_chars = self.jv_chars_calculation(voltage, current)
         self.display_live_current(ave_curr, False)
         self.display_live_voltage(0, False)
 
