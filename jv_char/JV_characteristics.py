@@ -1442,7 +1442,6 @@ class MainWindow(QtWidgets.QMainWindow):
             print("read_measurement_type not found")
 
     def jv_multiplex_setup(self, meas_process):
-        #self.statusBar().showMessage("Measuring JV curve")
         jv_variables, _ = self.read_measurement_variables()
         volt_begin, volt_end, volt_step, ap, time, area = jv_variables
 
@@ -1465,7 +1464,7 @@ class MainWindow(QtWidgets.QMainWindow):
                     self.relays[cn].on()
                     self.jv_perform_measurement(meas_process, forwa_vars, rever_vars, fixed_vars, cell_name, cn, cell)
                     self.relays[cn].off()
-                else:
+                elif not self.is_meas_live:
                     self.relays[cn].off()
                     break
             self.is_meas_live = False
