@@ -1442,7 +1442,6 @@ class MainWindow(QtWidgets.QMainWindow):
             print("read_measurement_type not found")
 
     def jv_multiplex_setup(self, meas_process):
-        #self.statusBar().showMessage("Measuring JV curve")
         jv_variables, _ = self.read_measurement_variables()
         volt_begin, volt_end, volt_step, ap, time, area = jv_variables
 
@@ -1457,20 +1456,22 @@ class MainWindow(QtWidgets.QMainWindow):
             cell_list = [self.cell_g]
             cell_name = [""]
 
-        while self.is_meas_live:
-            if self.is_multiplex:
-                areas = self.get_areas()
-                for cn, cell in enumerate(cell_list):
-                    fixed_vars[-1] = areas[cn]
-                    if cell.isChecked():
-                        self.relays[cn].on()
-                        self.jv_perform_measurement(meas_process, forwa_vars, rever_vars, fixed_vars, cell_name, cn, cell)
-                        self.relays[cn].off()
-                self.is_meas_live = False
+        if self.is_multiplex:
+            areas = self.get_areas()
+            for cn, cell in enumerate(cell_list):
+                fixed_vars[-1] = areas[cn]
+                if cell.isChecked() and self.is_meas_live:
+                    self.relays[cn].on()
+                    self.jv_perform_measurement(meas_process, forwa_vars, rever_vars, fixed_vars, cell_name, cn, cell)
+                    self.relays[cn].off()
+                elif not self.is_meas_live:
+                    self.relays[cn].off()
+                    break
+            self.is_meas_live = False
 
-            else:
-                self.jv_perform_measurement(meas_process, forwa_vars, rever_vars, fixed_vars, cell_name)
-                self.is_meas_live = False
+        else:
+            self.jv_perform_measurement(meas_process, forwa_vars, rever_vars, fixed_vars, cell_name)
+            self.is_meas_live = False
 
 
     def mpp_multiplex_setup(self):
@@ -1561,8 +1562,11 @@ class MainWindow(QtWidgets.QMainWindow):
                     self.vmpp_value_to_tracking()
                 except:
                     pass
-            self.curr_volt_results["Voltage (V)_" + m_name + "_" + direc + "_" + ilum] = volt
-            self.curr_volt_results["Current Density(mA/cm²)_" + m_name + "_" + direc + "_" + ilum] = curr
+            try:
+                self.curr_volt_results["Voltage (V)_" + m_name + "_" + direc + "_" + ilum] = volt
+                self.curr_volt_results["Current Density(mA/cm²)_" + m_name + "_" + direc + "_" + ilum] = curr
+            except:
+                pass
 
 
     def mpp_perform_measurement(self, mpp_variables,cell_name, cn=0, cell=''):
@@ -1657,31 +1661,34 @@ class MainWindow(QtWidgets.QMainWindow):
 
         current = []
         voltage = []
+        ave_curr = 0
 
         for i in np.arange(volt_0, volt_f, step):
-            meas_currents = []
-            meas_voltages = []
+            if self.is_meas_live:
+                meas_currents = []
+                meas_voltages = []
 
-            self.keithley.source_voltage = i
-            QtTest.QTest.qWait(int(time_s * 1000)) #Settling time
-            for t in range(average_points):
-                if self.is_meas_live:
+                self.keithley.source_voltage = i
+                QtTest.QTest.qWait(int(time_s * 1000)) #Settling time
+                for t in range(average_points):
+                    # if self.is_meas_live:
                     meas_voltages.append(i)
                     meas_currents.append(self.keithley.current * 1000 / area)
-                else:
-                    meas_voltages.append(np.nan)
-                    meas_currents.append(np.nan)
-                    # pass
+                    # else:
+                    #     meas_voltages.append(np.nan)
+                    #     meas_currents.append(np.nan)
+                        # pass
 
-            ave_curr = np.mean(np.array(meas_currents))
-            self.display_live_current(ave_curr)
-            self.display_live_voltage(i)
-            current.append(ave_curr)
-            voltage.append(np.mean(meas_voltages))
+                ave_curr = np.mean(np.array(meas_currents))
+                self.display_live_current(ave_curr)
+                self.display_live_voltage(i)
+                current.append(ave_curr)
+                voltage.append(np.mean(meas_voltages))
 
-            self.plot_jv(voltage, current, mode, counter)
+                self.plot_jv(voltage, current, mode, counter)
+            else:
+                break
 
-        # jv_chars = self.jv_chars_calculation(voltage, current)
         self.display_live_current(ave_curr, False)
         self.display_live_voltage(0, False)
 
