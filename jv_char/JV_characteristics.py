@@ -9,10 +9,11 @@ from PyQt5.QtWidgets import QFrame, QPushButton, QCheckBox, QLabel, QToolButton,
 from PyQt5.QtWidgets import QSizePolicy, QMessageBox, QDialog,QInputDialog
 from PyQt5.QtGui import QFont, QColor, QPixmap
 from PyQt5.QtWidgets import QTableView
-from PyQt5.QtCore import QAbstractTableModel, Qt
+from PyQt5.QtCore import QAbstractTableModel, Qt, QTimer
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg, NavigationToolbar2QT as NavigationToolbar
 from matplotlib.figure import Figure
 from matplotlib import rcParams
+from glob import glob
 from pymeasure.instruments.keithley import Keithley2450
 from sklearn.linear_model import LinearRegression
 import pyvisa as visa
@@ -35,9 +36,12 @@ class TableModel(QAbstractTableModel):
         super(TableModel, self).__init__()
         self._data = data
         self.highlight_row = ""
-        if self._data.shape[0] > 1 and self._data["PCE\n(%)"].max != 0:
-            self.highlight_row = self._data.index.get_loc(self._data["PCE\n(%)"].astype("float").idxmax())
-        else:
+        try:
+            if self._data.shape[0] > 1 and self._data["PCE\n(%)"].max != 0:
+                self.highlight_row = self._data.index.get_loc(self._data["PCE\n(%)"].astype("float").idxmax())
+            else:
+                pass
+        except:
             pass
             # print(self.highlight_row)
 
@@ -108,17 +112,32 @@ class MainWindow(QtWidgets.QMainWindow):
         super(MainWindow, self).__init__(*args, **kwargs)
 
         # Initialize parameters
+        self.gui_temp_timer = QTimer(self)
         self.setWindowTitle("JV Characteristics")
         folder = os.path.abspath(os.getcwd()) + "\\"
         self.setWindowIcon(QtGui.QIcon(folder + "solar.ico"))
         np.seterr(divide='ignore', invalid='ignore')
         self.sample = ""
 
-        self.statusBar().showMessage("Program by Edgar Nandayapa - 2022", 10000)
+        self.statusBar().showMessage("Starting up, please wait", 10000)
 
-        try: #  Relay card configuration
-            self.relaycard = relay_card.connect('COM5')
-            #print(f'Firmware version: {self.relaycard.firmware_version}')
+        #  Keithley configuration
+        try:
+            rm = visa.ResourceManager()  # Load piVisa
+            device = rm.list_resources()[0]  # Get the first keithley on the list
+            self.keithley = Keithley2450(device)
+            self.keithley.wires = 4
+        except:
+            device = None
+            self.keithley = None
+            self.statusBar().showMessage("##    Keithley not found    ##")
+
+        port_list = self.list_com_ports()  # Get all the devices names
+
+        # Relay card configuration
+        try:
+            relay_port_name = "USB Serial Device"
+            self.relaycard = relay_card.connect(port_list[relay_port_name])
             self.relaycard.factory_reset()
             self.is_relay = True
 
@@ -130,20 +149,10 @@ class MainWindow(QtWidgets.QMainWindow):
             self.is_relay = False
             print("relay not found")
 
-
-        try: #  Keithley configuration
-            rm = visa.ResourceManager()  # Load piVisa
-            print(rm.list_resources())
-            device = rm.list_resources()[0]  # Get the first keithley on the list
-            self.keithley = Keithley2450(device)
-            self.keithley.wires = 4
-        except:
-            device = None
-            self.keithley = None
-            self.statusBar().showMessage("##    Keithley not found    ##")
-
-        try: #  SUSI configuration
-            self.susi = serial.Serial("COM4")
+        # SUSI configuration
+        try:
+            susi_port_name = "USB Serial Port"
+            self.susi = serial.Serial(port_list[susi_port_name])
             self.susi.baudrate = 9600
             self.susi.bytesize = 8
             self.susi.parity = 'N'
@@ -166,6 +175,14 @@ class MainWindow(QtWidgets.QMainWindow):
                 self.popup_message("    susi\n"
                                    "was not found")
 
+        # Arduino temperature sensor configuration
+        try:
+            susi_port_name = "USB-SERIAL CH340"
+            self.senseTemp = serial.Serial(port_list[susi_port_name], 9600, timeout=1)
+            self.is_temperature_sensor = True
+        except:
+            self.is_temperature_sensor = False
+
         self.create_widgets()
 
         self.button_actions()  # Set button actions
@@ -185,6 +202,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.is_recipe = False
         self.is_jv_measurement = False
         self.is_mpp_measurement = False
+        self.real_area = np.nan
 
         # Add a toolbar to control plotting area
         toolbar = NavigationToolbar(self.canvas, self)
@@ -345,6 +363,7 @@ class MainWindow(QtWidgets.QMainWindow):
         label_rev.setFont(QFont("Arial", 14))
         self.label_currcurr = QLabel("")
         self.label_currvolt = QLabel("")
+        self.label_tempsens = QLabel("")
         # self.refPower.setMaximumWidth(sMW*2)
 
         LsetProcess = QGridLayout()
@@ -444,7 +463,9 @@ class MainWindow(QtWidgets.QMainWindow):
         LsetStart.addWidget(self.BStart, 1, 0, 1, 4)
         LsetStart.addWidget(self.label_currvolt, 2, 0, 1, 1)
         LsetStart.addWidget(self.label_currcurr, 3, 0, 1, 1)
-        # Lsetup.addRow(" ",QFrame())
+        LsetStart.addWidget(QLabel("Substrate Temp."), 2, 3, 1, 1, Qt.AlignRight)
+        LsetStart.addWidget(self.label_tempsens, 3, 3, 1, 1, Qt.AlignRight)
+        LsetStart.addWidget(QLabel(" "), 4, 0)
 
         LsetMPP = QGridLayout()
 
@@ -508,17 +529,17 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.setup_labs_jv = ["Sample", "User", "Folder", "Voltage_start (V)", "Voltage_end (V)", "Voltage_step (V)",
                               "Averaged Points", "Integration time(s)", "Setting time (s)", "Current limit (mA)",
-                              "Cell area(cm²)",
+                              "Cell area(cm²)", "Light soaking (s)", "Soaking bias (V)",
                               "Power Density (mW/cm²)"]#, "Sun Reference (mA)"]
         self.setup_vals_jv = [self.LEsample, self.LEuser, self.LEfolder, self.volt_start,
                               self.volt_end, self.volt_step, self.ave_pts, self.int_time, self.set_time, self.curr_lim,
-                              self.sam_area,
+                              self.sam_area, self.light_soak, self.bias_soak,
                               self.pow_dens]#, self.sun_ref]
         self.setup_labs_mpp = ["Sample", "User", "Folder", "Total time (s)", "Integration time (ms)",
                                "Voltage_step (V)",
-                               "Starting Voltage (V)", "Cell area(cm²)"]
+                               "Starting Voltage (V)", ]
         self.setup_vals_mpp = [self.LEsample, self.LEuser, self.LEfolder, self.mpp_ttime,
-                               self.mpp_inttime, self.mpp_stepSize, self.mpp_voltage, self.sam_area]
+                               self.mpp_inttime, self.mpp_stepSize, self.mpp_voltage,]
 
         # Make a new layout and position relevant values
         LmetaSample = QFormLayout()
@@ -596,6 +617,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.other_buttons = [self.for_bmL, self.rev_bmL, self.for_bmD, self.rev_bmD, self.four_wire,  # self.logyaxis,
                               self.BsaveM, self.BloadM, self.Bsusi_intensity]
 
+
         if not self.is_relay:
             self.multiplex.setChecked(False)
             self.multiplexing_allow()
@@ -606,9 +628,19 @@ class MainWindow(QtWidgets.QMainWindow):
 
 
         if self.is_susi:
+            self.dis_enable_widgets(True, "jv")
             self.susi_startup()
         else:
             self.disable_susi()
+
+        self.dis_enable_widgets(False, "jv")
+
+        self.update_gui_temperature()
+        if self.is_temperature_sensor:
+            self.gui_temp_timer.timeout.connect(self.update_gui_temperature)
+            self.gui_temp_timer.start(10*1000)  # Update every half minute
+        else:
+            self.label_tempsens.setText("-- °C")
 
     def button_actions(self):
         self.folder = self.LEfolder.text()
@@ -626,6 +658,14 @@ class MainWindow(QtWidgets.QMainWindow):
         self.Bsusi_on.clicked.connect(self.susi_startup)
         self.Brecipe.clicked.connect(self.recipe_popup)
         self.multiplex.stateChanged.connect(self.multiplexing_allow)
+
+    def list_com_ports(self):
+        ports = serial.tools.list_ports.comports()
+        port_dict = {}
+        for port in ports:
+            port_dict[port.description.split(' (')[0]] = port.name
+            # print(f"Port: {port.device}, Name: {port.name}, Description: {port.description}")
+        return port_dict
 
     def popup_message(self, text):
         qmes = QMessageBox.about(self, "Something happened...", text)
@@ -662,9 +702,22 @@ class MainWindow(QtWidgets.QMainWindow):
         self.LEfolder.setText(newfolder)
         self.folder = newfolder
 
+        self.automatic_fill_metadata()
+
         self.create_folder(False)
 
         self.Bpath.setEnabled(False)
+
+    def automatic_fill_metadata(self):
+        up_folder = self.folder.rsplit("/",2)[0]
+
+        jv_files = glob(up_folder+"/*/JV_*.txt")
+        jv_files.sort(key=os.path.getmtime)
+        try:
+            last_file = jv_files[-1]
+            self.load_meta(last_file)
+        except:
+            pass
 
     def create_folder(self, sample, retry=1):
         self.folder = self.LEfolder.text()
@@ -692,6 +745,21 @@ class MainWindow(QtWidgets.QMainWindow):
         else:
             pass
 
+    def find_separators_in_file(self, file_path):
+        with open(file_path, "r") as file:
+            lines = file.readlines()
+
+        positions = []
+        for index, line in enumerate(lines):
+            if line.strip() == "--":
+                positions.append(index + 1)
+                # print(f"'--' found at line {index + 1}")
+
+        if len(positions) < 1:
+            positions.append(index + 1)
+
+        return positions
+
     def save_meta(self):
         self.create_folder(False)
         self.gather_all_metadata()
@@ -699,26 +767,30 @@ class MainWindow(QtWidgets.QMainWindow):
         metadata.to_csv(self.folder + "metadata.txt", header=False, sep="\t")
         self.statusBar().showMessage("Metadata file saved successfully", 5000)
 
-    def load_meta(self):
-        folder = self.LEfolder.text()
-        metafile = QtWidgets.QFileDialog.getOpenFileName(self, "Choose your metadata file", folder)
-        if metafile:
-            metadata = pd.read_csv(metafile[0], header=None, delimiter="\t", index_col=0, nrows=21)
+    def load_meta(self, metafile=None):
+        # TODO gather_metadata (for save function) and this are not compatible...
+        try:
+            folder = self.LEfolder.text()
+            if not metafile:
+                metafile = QtWidgets.QFileDialog.getOpenFileName(self, "Choose your metadata file", folder)[0]
+                sep_sym = self.find_separators_in_file(metafile)
+
+            metadata = pd.read_csv(metafile, header=None, delimiter="\t", index_col=0, nrows=sep_sym[0])
             # print(metadata)
             labels = self.setup_labs_jv + self.exp_labels
             objects = self.setup_vals_jv + self.exp_vars
 
-        for cc, oo in enumerate(objects):
-            if labels[cc] == "Sample":
-                pass
-            else:
-                # print(cc, labels[cc])
-                # print(metadata.loc[labels[cc]])
-                oo.setText(metadata.loc[labels[cc]][1])
+            for cc, oo in enumerate(objects):
+                if labels[cc] == "Sample":
+                    pass
+                else:
+                    # print(cc, labels[cc])
+                    # print(metadata.loc[labels[cc]])
+                    oo.setText(str(metadata.loc[labels[cc]][1]))
 
-        # self.LEfolder.setText(metadata.loc["Folder"])
-
-        self.statusBar().showMessage("Metadata successfully loaded", 5000)
+            self.statusBar().showMessage("Metadata successfully loaded", 5000)
+        except:
+            self.statusBar().showMessage("Metadata file not compatible", 5000)
 
     def gather_all_metadata(self):
         self.sample = self.LEsample.text()
@@ -750,14 +822,12 @@ class MainWindow(QtWidgets.QMainWindow):
         for cc, di in enumerate(all_metaD_labs):
             self.meta_dict[di] = all_metaD_vals[cc].text()
 
+        self.meta_dict["Cell area(cm²)"] = self.real_area
         self.meta_dict["Ref. Current(mA)"] = self.Rcurrent
         self.meta_dict["Sun%"] = self.RsunP
 
         if self.is_susi:
             self.meta_dict["SuSi Intensity (%)"] = float(self.susi_intensity.text())
-
-        # for cp,ad in enumerate(addit_labl):
-        #     self.meta_dict[ad] = addit_data[cp]
 
         self.meta_dict[
             "Comments"] = self.com_labels.toPlainText()  # This field has a diffferent format than the others
@@ -828,7 +898,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def fix_jv_chars_for_save(self):
         names = ["Voc (V)", "Jsc (mA/cm2)", "FF (%)", "PCE (%)", "V_mpp (V)", "J_mpp (mA/cm2)", "P_mpp (mW/cm2)",
-                 "R_series (Ohm cm2)", "R_shunt (Ohm cm2)", "Time"]
+                 "R_series (Ohm cm2)", "R_shunt (Ohm cm2)", "Temperature (°C)", "Time"]
         names_f = [na.replace(" ", "") for na in names]
         # names_t = [na.replace(" ","\n") for na in names]
         # empty = ["","","","","","","","",""]
@@ -838,7 +908,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def jv_char_qtabledisplay(self):
         names = ["Voc (V)", "Jsc (mA/cm²)", "FF (%)", "PCE (%)", "V_mpp (V)", "J_mpp (mA/cm²)", "P_mpp (mW/cm²)",
-                 "R_series (\U00002126cm²)", "R_shunt (\U00002126cm²)", "Time"]
+                 "R_series (\U00002126cm²)", "R_shunt (\U00002126cm²)", "Temperature (°C)",  "Time"]
         # names_f = [na.replace(" ","") for na in names] 
         names_t = [na.replace(" ", "\n") for na in names]
         values = self.jv_chars_results.T.copy()
@@ -1031,9 +1101,24 @@ class MainWindow(QtWidgets.QMainWindow):
 
         uhrzeit = strftime("%d.%m.%Y %H:%M:%S", gmtime())
 
-        jv_char = [voc, isc, ff, pce, mpp_v, mpp_c, mpp_p, r_ser, r_par, uhrzeit]
+        temper = self.read_temperature_sensor()
+
+        jv_char = [voc, isc, ff, pce, mpp_v, mpp_c, mpp_p, r_ser, r_par, temper, uhrzeit]
 
         return jv_char
+
+    def update_gui_temperature(self):
+        temperature = self.read_temperature_sensor()
+        self.label_tempsens.setText(str(temperature) + " °C")
+
+    def read_temperature_sensor(self):
+        if self.is_temperature_sensor:
+            temp_bin = self.senseTemp.readline().strip()   # read a byte
+            temp_sensor = float(temp_bin[-5:])
+        else:
+            temp_sensor = np.nan
+
+        return temp_sensor
 
     def susi_button(self):
         if self.is_susi:
@@ -1090,6 +1175,9 @@ class MainWindow(QtWidgets.QMainWindow):
         wid = QWidget()
         layout = QGridLayout()
         self.susi_intensity = QLineEdit()
+        self.curr_lim_pop = QLineEdit()
+        self.four_wire_pop = QCheckBox()
+        self.susi_multiplier = QLineEdit()
         self.ref_area = QLineEdit()
         self.sun_ref = QLineEdit()
         self.Bsusi_set = QToolButton()
@@ -1100,8 +1188,10 @@ class MainWindow(QtWidgets.QMainWindow):
         self.bcancel = QToolButton()
 
         self.susi_intensity.setMaximumWidth(60)
+        self.curr_lim_pop.setMaximumWidth(60)
         self.ref_area.setMaximumWidth(60)
         self.sun_ref.setMaximumWidth(60)
+        self.susi_multiplier.setMaximumWidth(60)
         self.Bsusi_set.setMaximumWidth(40)
         self.bstatus.setMaximumWidth(40)
         self.Bcurrtest.setMaximumWidth(40)
@@ -1110,28 +1200,38 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.susi_intensity.setText(str(self.susi_percentage)) #May not be necessary (repeated)
         self.ref_area.setText("1")
+        self.susi_multiplier.setText("1")
         self.sun_ref.setText("130.3")
         self.Bsusi_set.setText("Set")
         self.Bcurrtest.setText("Test")
-        self.bstatus.setText("Status")
+        self.bstatus.setText("Status (CMD output)")
         self.bsave.setText("Save")
         self.bcancel.setText("Cancel")
+        self.curr_lim_pop.setText("300")
+        self.four_wire_pop.setChecked(True)
+        self.four_wire.setChecked(True)
 
         # Active widgets
-        layout.addWidget(QLabel("Set Intensity (%):"), 0, 0)
+        layout.addWidget(QLabel("Lamp Intensity (%):"), 0, 0)
         layout.addWidget(self.susi_intensity, 0, 1)
         layout.addWidget(self.Bsusi_set, 0, 2)
-        layout.addWidget(QLabel("Range: 75-105%"), 1, 0)
-        layout.addWidget(QLabel("Ref. cell area (cm²)"), 2, 0)
-        layout.addWidget(self.ref_area, 2, 1)
-        layout.addWidget(QLabel("Ref. current (mA)"), 3, 0)
-        layout.addWidget(self.sun_ref, 3, 1)
-        layout.addWidget(QLabel("Measure Ref:"), 4, 0)
-        layout.addWidget(self.Lcurrcurr, 4, 1)
-        layout.addWidget(self.Bcurrtest, 4, 2)
-        layout.addWidget(self.bsave, 5, 0)
-        layout.addWidget(self.bcancel, 5, 2)
-        layout.addWidget(self.bstatus, 6, 0)
+        #layout.addWidget(QLabel("Spectral Mismatch:"),
+        #layout.addWidget(self.susi_multiplier,
+        layout.addWidget(QLabel("Range: 75-105%"), 1, 1, 1, 2)
+        layout.addWidget(QLabel("Current Limit (mA)"), 2, 0)
+        layout.addWidget(self.curr_lim_pop, 2, 1, Qt.AlignLeft)
+        layout.addWidget(QLabel("4-Wire"), 3, 0)
+        layout.addWidget(self.four_wire_pop, 3, 1)
+        layout.addWidget(QLabel("Ref. cell area (cm²)"), 4, 0)
+        layout.addWidget(self.ref_area, 4, 1)
+        layout.addWidget(QLabel("Ref. current (mA)"), 5, 0)
+        layout.addWidget(self.sun_ref, 5, 1)
+        layout.addWidget(QLabel("Measure Ref:"), 6, 0)
+        layout.addWidget(self.Lcurrcurr, 6, 1)
+        layout.addWidget(self.Bcurrtest, 6, 2)
+        layout.addWidget(self.bsave, 7, 0)
+        layout.addWidget(self.bcancel, 7, 2)
+        layout.addWidget(self.bstatus, 8, 0, 1, 3)
 
         self.dlg.setLayout(layout)
 
@@ -1176,9 +1276,15 @@ class MainWindow(QtWidgets.QMainWindow):
         return dframe
 
     def dialog_close(self):
+        self.curr_lim.setText("100")
+        self.four_wire.setChecked(False)
+        self.susi_shutter_close()
         self.dlg.close()
 
     def dialog_save(self):
+        self.curr_lim.setText("100")
+        self.four_wire.setChecked(False)
+        self.susi_shutter_close()
         intensity = self.susi_intensity.text()
         self.log_susi_save(intensity)
         self.susi_intensity.setText(intensity)
@@ -1214,6 +1320,9 @@ class MainWindow(QtWidgets.QMainWindow):
         self.susi.write(message.encode('utf-8'))  # Set light intensity
 
     def dialog_test_current(self):
+        self.four_wire.setChecked(self.four_wire_pop.isChecked()) # TODO clean this
+        self.curr_lim.setText(self.curr_lim_pop.text())
+
         self.test_actual_current()
 
         self.Lcurrcurr.setText(str(round(self.Rcurrent, 2)) + " mA")
@@ -1295,13 +1404,17 @@ class MainWindow(QtWidgets.QMainWindow):
 
             for m in multi:
                 area.append(float(m.text()))
+
         else:
             area = float(self.sam_area.text())
+
+        self.real_area = area
 
         return area
 
     def read_measurement_type(self):
         self.empty_results_arrays()
+        self.soaking_process()
 
         if self.is_recipe:
             meas_process = self.recipe_list
@@ -1343,16 +1456,18 @@ class MainWindow(QtWidgets.QMainWindow):
             cell_list = [self.cell_g]
             cell_name = [""]
 
-        while self.is_meas_live:
-            if self.is_multiplex:
-                areas = self.get_areas()
-                for cn, cell in enumerate(cell_list):
-                    fixed_vars[-1] = areas[cn]
-                    if cell.isChecked():
-                        self.relays[cn].on()
-                        self.jv_perform_measurement(meas_process, forwa_vars, rever_vars, fixed_vars, cell_name, cn, cell)
-                        self.relays[cn].off()
-                self.is_meas_live = False
+        if self.is_multiplex:
+            areas = self.get_areas()
+            for cn, cell in enumerate(cell_list):
+                fixed_vars[-1] = areas[cn]
+                if cell.isChecked() and self.is_meas_live:
+                    self.relays[cn].on()
+                    self.jv_perform_measurement(meas_process, forwa_vars, rever_vars, fixed_vars, cell_name, cn, cell)
+                    self.relays[cn].off()
+                elif not self.is_meas_live:
+                    self.relays[cn].off()
+                    break
+            self.is_meas_live = False
 
             else:
                 self.jv_perform_measurement(meas_process, forwa_vars, rever_vars, fixed_vars, cell_name)
@@ -1548,31 +1663,34 @@ class MainWindow(QtWidgets.QMainWindow):
 
         current = []
         voltage = []
+        ave_curr = 0
 
         for i in np.arange(volt_0, volt_f, step):
-            meas_currents = []
-            meas_voltages = []
+            if self.is_meas_live:
+                meas_currents = []
+                meas_voltages = []
 
-            self.keithley.source_voltage = i
-            QtTest.QTest.qWait(int(time_s * 1000)) #Settling time
-            for t in range(average_points):
-                if self.is_meas_live:
+                self.keithley.source_voltage = i
+                QtTest.QTest.qWait(int(time_s * 1000)) #Settling time
+                for t in range(average_points):
+                    # if self.is_meas_live:
                     meas_voltages.append(i)
                     meas_currents.append(self.keithley.current * 1000 / area)
-                else:
-                    meas_voltages.append(np.nan)
-                    meas_currents.append(np.nan)
-                    # pass
+                    # else:
+                    #     meas_voltages.append(np.nan)
+                    #     meas_currents.append(np.nan)
+                        # pass
 
-            ave_curr = np.mean(np.array(meas_currents))
-            self.display_live_current(ave_curr)
-            self.display_live_voltage(i)
-            current.append(ave_curr)
-            voltage.append(np.mean(meas_voltages))
+                ave_curr = np.mean(np.array(meas_currents))
+                self.display_live_current(ave_curr)
+                self.display_live_voltage(i)
+                current.append(ave_curr)
+                voltage.append(np.mean(meas_voltages))
 
-            self.plot_jv(voltage, current, mode, counter)
+                self.plot_jv(voltage, current, mode, counter)
+            else:
+                break
 
-        # jv_chars = self.jv_chars_calculation(voltage, current)
         self.display_live_current(ave_curr, False)
         self.display_live_voltage(0, False)
 
