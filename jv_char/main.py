@@ -325,7 +325,7 @@ class MainWindow(QtWidgets.QMainWindow):
         LsetParameters.addWidget(self.set_time, 3, 3, Qt.AlignLeft)
         LsetParameters.addWidget(QLabel("Light soaking (s)"), 3, 0, Qt.AlignRight)
         LsetParameters.addWidget(self.light_soak, 3, 1, Qt.AlignLeft)
-        LsetParameters.addWidget(QLabel("Pre-biasing (V)"), 4, 0, Qt.AlignRight)
+        LsetParameters.addWidget(QLabel("Pre-biasing (V)"), 4, 0, Qt.AlignRight) # todo make it possible to choose pre bias without light, and also to do it for all or some cells
         LsetParameters.addWidget(self.bias_soak, 4, 1, Qt.AlignLeft)
         LsetParameters.addWidget(QLabel("Cell area (cm²)"), 4, 2, Qt.AlignRight)
         LsetParameters.addWidget(self.sam_area, 4, 3, Qt.AlignLeft)
