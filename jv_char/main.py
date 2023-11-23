@@ -5,7 +5,7 @@ import sys
 import matplotlib
 from PyQt5 import QtWidgets, QtGui, QtTest
 from PyQt5.QtWidgets import QWidget, QLineEdit, QFormLayout, QHBoxLayout, QVBoxLayout, QSpacerItem, QGridLayout
-from PyQt5.QtWidgets import QFrame, QPushButton, QCheckBox, QLabel, QToolButton, QTextEdit, QPlainTextEdit
+from PyQt5.QtWidgets import QFrame, QPushButton, QCheckBox, QLabel, QToolButton, QTextEdit, QTextBrowser
 from PyQt5.QtWidgets import QSizePolicy, QMessageBox, QDialog,QInputDialog
 from PyQt5.QtGui import QFont, QColor, QPixmap
 from PyQt5.QtWidgets import QTableView
@@ -292,7 +292,6 @@ class MainWindow(QtWidgets.QMainWindow):
         self.cell_num.setMaximumWidth(sMW)
         self.light_soak.setMaximumWidth(sMW)
         self.bias_soak.setMaximumWidth(sMW)
-        # self.sun_ref.setMaximumWidth(sMW)
 
         # Set widget texts
         self.volt_start.setText("-0.2")
@@ -306,8 +305,6 @@ class MainWindow(QtWidgets.QMainWindow):
         self.pow_dens.setText("100")
         self.light_soak.setText("0")
         self.bias_soak.setText("0")
-        # self.sun_ref.setText("74")
-        # self.cell_num.setText("1")#module
 
         # Position labels and field in a grid
         LsetParameters.addWidget(QLabel(" "), 0, 0)
@@ -319,8 +316,6 @@ class MainWindow(QtWidgets.QMainWindow):
         LsetParameters.addWidget(self.volt_step, 2, 1, Qt.AlignLeft)
         LsetParameters.addWidget(QLabel("Averaging points"), 2, 2, Qt.AlignRight)
         LsetParameters.addWidget(self.ave_pts, 2, 3, Qt.AlignLeft)
-        #LsetParameters.addWidget(QLabel("Integration time (s)"), 3, 0, Qt.AlignRight)
-        #LsetParameters.addWidget(self.int_time, 3, 1, Qt.AlignLeft)
         LsetParameters.addWidget(QLabel("Settling time (s)"), 3, 2, Qt.AlignRight)
         LsetParameters.addWidget(self.set_time, 3, 3, Qt.AlignLeft)
         LsetParameters.addWidget(QLabel("Light soaking (s)"), 3, 0, Qt.AlignRight)
@@ -571,12 +566,14 @@ class MainWindow(QtWidgets.QMainWindow):
         self.Bsusi_off = QToolButton()
         self.Bsusi_on = QToolButton()
         self.Brecipe = QToolButton()
+        self.Binfo = QToolButton()
         self.BsaveM.setText("Save")
         self.BloadM.setText("Load")
         self.Bsusi_intensity.setText("Set")
         self.Bsusi_off.setText("Off")
         self.Bsusi_on.setText("On")
         self.Brecipe.setText("Recipe")
+        self.Binfo.setText("\u24D8 Info")
         self.BsaveM.setMaximumWidth(40)
         self.BloadM.setMaximumWidth(40)
         self.Bsusi_intensity.setMaximumWidth(40)
@@ -593,6 +590,7 @@ class MainWindow(QtWidgets.QMainWindow):
         LextraButtons.addWidget(self.Bsusi_on, 2, 2)
         LextraButtons.addWidget(self.Bsusi_off, 2, 3)
         LextraButtons.addWidget(self.Brecipe, 3, 3)
+        LextraButtons.addWidget(self.Binfo, 4, 3)
 
         # Position layouts inside the third vertical layout V3
         layV3.addItem(verticalSpacerV2)
@@ -657,6 +655,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.Bsusi_off.clicked.connect(self.susi_shutdown)
         self.Bsusi_on.clicked.connect(self.susi_startup)
         self.Brecipe.clicked.connect(self.recipe_popup)
+        self.Binfo.clicked.connect(self.show_manual)
         self.multiplex.stateChanged.connect(self.multiplexing_allow)
 
     def list_com_ports(self):
@@ -791,6 +790,26 @@ class MainWindow(QtWidgets.QMainWindow):
             self.statusBar().showMessage("Metadata successfully loaded", 5000)
         except:
             self.statusBar().showMessage("Metadata file not compatible", 5000)
+
+    def show_manual(self):
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Information")
+        dialog.setGeometry(100, 100, 400, 300)
+
+        layout = QVBoxLayout(dialog)
+
+        textBrowser = QTextBrowser(dialog)
+        layout.addWidget(textBrowser)
+
+        html_file_path = "../Resources/manual.html"  # Update the file path to your HTML file
+        if os.path.exists(html_file_path):
+            with open(html_file_path, 'r', encoding='utf-8') as file:  # Ensure UTF-8 encoding is used
+                html_content = file.read()
+                textBrowser.setHtml(html_content)
+        else:
+            textBrowser.setPlainText("HTML file not found.")
+
+        dialog.exec_()
 
     def gather_all_metadata(self):
         self.sample = self.LEsample.text()
@@ -1013,7 +1032,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.keithley.disable_source()
 
-    def recipe_popup(self):
+    def recipe_popup(self): # todo allow delay times with illumination and bias options
         text, ok = QInputDialog.getText(self, 'Make a Recipe', 'Use "F", "B" for Forward and Backward\n'
                                                                '  and "D", "L" for Dark and light\n'
                                                                '  separate with commas (,)\n'
