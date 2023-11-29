@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>JV Characteristics Manual</title>
+    <style>
+        .section-title {
+            font-size: 1.5em;
+            font-weight: bold;
+        }
+        hr {
+            border: 0;
+            height: 1px;
+            background-color: #ccc;
+        }
+        code {
+            background-color: #cccccc; /* Light grey background */
+            padding: 2px 4px;
+            font-family: monospace;
+        }
+        a {
+            color: blue;
+            text-decoration: underline;
+        }
+        blockquote {
+            background-color: #eeeeee; /* Lighter grey background */
+            padding: 10px;
+            margin: 20px 0;
+            border-left: 5px solid #ccc;
+        }
+    </style>
+</head>
+<body>
+<h1 id="jv-characteristics-manual">JV Characteristics Manual</h1>
+<h2 id="introduction">Introduction</h2>
+<hr>
+<p>This manual provides guidance for using the JV Characteristics Analyzer, a tool for analyzing JV characteristics of photovoltaic cells and other diodes.</p>
+<h2 id="installation">Installation</h2>
+<hr>
+<p>If using python:</p>
+<ol>
+<li><p>Clone the latest version of the program from <a href="https://codebase.helmholtz.cloud/hyd/jv_char">gitlab</a>. (For more information follow this comprehensive <a href="https://docs.gitlab.com/ee/user/project/repository/#clone-and-open-in-visual-studio-code">guide</a>).</p>
+</li>
+<li><p>Run the <code>main.py</code> file.</p>
+</li>
+</ol>
+<p>Alternatively, it is possible to directly install the application and use an <code>.exe</code> file by following the in-screen instructions after opening the installer.</p>
+<h2 id="getting-started">Getting Started</h2>
+<hr>
+<ol>
+<li><strong>Connect the hardware</strong>: The program has been successfully used with the following:</li>
+</ol>
+<ul>
+<li>Keithley 2450</li>
+<li>8-Channel USB relay card K8090</li>
+<li>Sciencetech SciSun-300 sun simulator</li>
+</ul>
+<p>The minimum requirement for the program to function is a Keithley instrument. While the program can operate without a relay or a sun simulator, the absence of these devices may result in reduced functionality. Some features might not be available if specific devices are not connected or detected.</p>
+<ol start="2">
+<li><strong>Run the program</strong>: Either by running the python code or the exe file.</li>
+</ol>
+<h2 id="usage">Usage</h2>
+<hr>
+<h3 id="basic-operations">Basic Operations</h3>
+<ol>
+<li><strong>Basic information</strong>: In the middle region of the GUI you will find relevant setting up fields:</li>
+</ol>
+<ul>
+<li>You can add the sample and username as well as the folder path. </li>
+<li>The <code>calendar button</code> will automatically create a folder under a &quot;User&quot; folder with the current date.</li>
+<li>The <code>folder button</code> will allow you to choose a specific folder where to save the data. \</li>
+</ul>
+<ol start="2">
+<li><strong>Measurement setup</strong>: Make sure to set the measurement values to your needs</li>
+</ol>
+<ul>
+<li><code>Start Voltage (V)</code>, <code>End Voltage (V)</code>, and <code>Step Size (V)</code> refer to the lower end of the voltage scan, the upper end of the voltage scan, and the increment of voltage for each measurement point, respectively.</li>
+<li>It&#39;s important to ensure that the <em>step size</em> divides evenly into the range defined by the <em>start voltage</em> and <em>end voltage</em>. If not, the final measured voltage may exceed the predefined range. For example, with a start voltage of 1 V, an end voltage of 2 V, and a step size of 0.6 V, the measurement points would be 1.0, 1.6, and 2.2 V in the forward direction, and 2.0, 1.4, and 0.8 V in reverse. This results in the last measurement (2.2 V forward and 0.8 V reverse) being outside the 1-2 V range.</li>
+<li><code>Averaging Points</code> refers to the number of data points the program collects at each step of the measurement. These points are then averaged to obtain a more stable and accurate value for that specific measurement.</li>
+<li>This should not be confused with <strong>nplc</strong>, which is the averaging process used by the keithley, and which is hard-coded to 5.</li>
+<li><code>Light soaking (s)</code> and <code>Pre-biasing (V)</code> will allow the sample to be illuminated for a certain amount of time at a certain bias. This will only be performed once, before the rest of the measurement continues. (Currently, the preconditioning applies uniformly to all cells under illumination and open circuit conditions. However, due to relay constraints, bias preconditioning is only feasible for the first cell. We acknowledge this limitation and are working to enhance these features in future updates to ensure consistent preconditioning across all cells.)</li>
+<li>Cells are always kept at open circuit conditions while measurements are not being carried out.</li>
+<li><code>Settling time (s)</code> refers to the time a sample is set to a specific bias before the program reads the measured current.</li>
+<li><code>Cell area (cm²)</code> refers to the area the program will use to calculate current density. This value will only be used if the <strong>multiplexing</strong> option is <strong>off</strong>. Otherwise, the program uses the areas set below.</li>
+<li><code>Power Density (mW/cm²)</code> refers to the power that will be used to calculate PCE. By default, the value is set to 100, however, when setting the SuSi Intensity, this value will be updated to the calculated one. (see more below in point 3)</li>
+<li><code>Current Limit (mA)</code> refers to the Keithley&#39;s current limit. It should be noted that this value increases the Keithley&#39;s range of the current, which might increase the noise level for higher current limits.</li>
+<li><code>Forward</code> (arrow pointing right) and <code>Reverse</code> (arrow pointing left) scan directions can be selected for both light and dark conditions. Forward scan refers to the measurement where voltage increases from negative to positive, while Reverse scan refers to the measurement where voltage decreases from positive to negative.</li>
+<li>Measurements are always started in a forward direction and then reverse. Additionally, dark always goes before illumination. If a different process is needed, use the <code>Recipe</code> function.</li>
+<li><code>4-wire</code> measurements can only be performed without multiplexing with our Keithley 2450 setup.</li>
+<li><code>log Y-axis</code> will modify the plot to allow a log display</li>
+<li>The <code>SuSi Shutter</code> button will open or close the sun simulator shutter</li>
+<li>Multiplexing is only allowed if a relay is found. </li>
+<li>The area values are necessary for the correct calculation of current density.</li>
+<li>Additional <code>Maximum Power Point Tracking</code> settings are found at the bottom.</li>
+</ul>
+<ol start="3">
+<li><strong>SuSi Intensity setup</strong></li>
+</ol>
+<ul>
+<li>Make sure that a (silicon) reference cell is connected for this process.</li>
+<li>When pressing the <code>Set</code> button next to <em>SuSi Intensity</em>, a popup will appear and the SuSi shutter will open.</li>
+<li><code>Lamp Intensity (%)</code> refers to the intensity of the sun simulator for the lamp. The manufacturer limits this parameter to 75-105%.</li>
+<li>For the intensity to change, the <code>Set</code> button must be pressed.</li>
+<li>When opening this windows, <em>Current Limit</em> will be automatically set to 300 mA and the measurement to 4-wire mode (make sure the cables are connected correctly).</li>
+<li><code>Ref. cell area (cm²)</code> corresponds to the area size of the reference cell.</li>
+<li><code>Ref. current (mA)</code> corresponds to the calibrated current value of the reference cell. It should be noted that AM 1.5G and the lamp spectra might defer.</li>
+<li>By pressing <code>Test</code>, the reference cell will be measured and the value will be displayed, alongside the power density.</li>
+<li><code>Save</code> will save the current result on <em>C:/Data/susi_log.txt</em>, so that the lamp power value is saved and remembered for next session. Additionally, the <code>Power Density (mW/cm²)</code> value on the main window will be updated to the one just calculated.</li>
+<li><code>Cancel</code> will just close the window. Nothing will be saved.</li>
+<li><code>Status (CMD output)</code> will print the current status of the lamp in the console.</li>
+<li>It is important to note that there could be a <strong>spectral mismatch</strong> that it is not accounted for in this menu.</li>
+</ul>
+<ol start="4">
+<li><strong>Performing a measurement</strong>:</li>
+</ol>
+<ul>
+<li>After setting up the measurement conditions, simply press the green <code>Start</code> button to start a JV swipe.</li>
+<li>Similarly, press the blue <code>Start</code> button to start an MPP tracking.</li>
+<li>Additionally, the button <code>Recipe</code> will allow you to control the JV swipe process. In principle, a string of commands have to be added in sequence so that the program does it, e.g.
+<blockquote>
+<p>FD,FD,FD,BD,FL,FL,FL,BL</p>
+</blockquote>
+<p>will measure three times forward in the dark, once backward in the dark, three times forward illuminated and once backward illuminated in sequence. This has been tested with up to 200 commands.</p>
+</li>
+</ul>
+<ol start="5">
+<li><strong>Metadata</strong>:</li>
+</ol>
+<p>The right panel on the GUI contains fields for metadata. These fields are not necessary to perform measurements, however, having a full set of data will not only help the user for later analysis, but it will also allow meta-analysis across time and users to study further aspects of our devices in the future.</p>
+<p>This values contain information relevant to the samples: <code>Material</code>, <code>Additives</code>, <code>Concentration</code>, <code>Solvents</code>, <code>Solvents Ratio</code>, <code>Substrate</code>, as well as to the glovebox conditions: <code>Temperature (°C)</code>, <code>Water content (ppm)</code>, <code>Oxygen content (ppm)</code>, and general <code>comments</code>.</p>
+<p>It should be noted that these values can later be used to do more meaningful data analysis with the help of the companion app <strong>JV Analysis</strong>.</p>
+<p>Please, fill up these fields.</p>
+<ol start="6">
+<li><strong>Additional settings</strong>:</li>
+</ol>
+<ul>
+<li>Metadata can be troublesome to type down. For that reason, you can <code>save</code> the metadata values and later on <code>load</code> them onto the gui. Furthermore, you can use an output JV file to fill these fields up automatically.</li>
+<li>The sun simulator intensity can be fixed and tuned by pressing the <code>Set</code> button.</li>
+<li>The sun simulator lamp should turn on by itself when the program is started. If this does not happen, the <code>On</code> button will do it. Additionally, the lamp will be turned <code>Off</code> by pressing the button. The device will however stay on, since a fan must cool the susi controller (i.e. the lamp) before it is completely turned off. The minimum cooling time after the lamp was turned off is <strong>10 min</strong>. Don&#39;t forget to turn the whole device after 10-15 min.</li>
+<li>It should be noted that the manufacturer recommends that the lamp should warm up for 10 min before it is used for measurements.</li>
+<li>We strongly recommend that the light intensity is checked with a reference cell before measurements.</li>
+</ul>
+<h2 id="troubleshooting">Troubleshooting</h2>
+<hr>
+<ul>
+<li>At this point, there are no consistent errors to notice. </li>
+<li>If a problem persists, always remember to restart the computer and the keithley (turn off and on).</li>
+</ul>
+<h2 id="contact">Contact</h2>
+<hr>
+<ul>
+<li>For further assistance or to report issues, contact by <a href="enandayapa@gmail.com">email</a> or <a href="https://codebase.helmholtz.cloud/hyd/jv_char">gitlab</a>.</li>
+</ul>
