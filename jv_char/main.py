@@ -1,4 +1,4 @@
-__author__ = "Edgar Nandayapa"
+__author__ = "Edgar R. Nandayapa"
 __version__ = "1.1"
 
 import sys
