@@ -1,5 +1,5 @@
 __author__ = "Edgar Nandayapa"
-__version__ = "1.08-2022"
+__version__ = "1.1"
 
 import sys
 import matplotlib
@@ -29,6 +29,12 @@ from datetime import datetime
 
 rcParams.update({'figure.autolayout': True})
 matplotlib.use('Qt5Agg')
+
+if getattr(sys, 'frozen', False):
+    EXE_LOCATION = os.path.dirname(sys.executable)  # cx_Freeze frozen
+else:
+    EXE_LOCATION = os.path.dirname(os.path.realpath(__file__))  # Other packers
+
 
 class TableModel(QAbstractTableModel):
 
@@ -114,8 +120,8 @@ class MainWindow(QtWidgets.QMainWindow):
         # Initialize parameters
         self.gui_temp_timer = QTimer(self)
         self.setWindowTitle("JV Characteristics")
-        folder = os.path.abspath(os.getcwd()) + "\\"
-        self.setWindowIcon(QtGui.QIcon(folder + "solar.ico"))
+        # folder = os.path.abspath(os.getcwd()) + "\\"
+        self.setWindowIcon(QtGui.QIcon(os.path.join(EXE_LOCATION, "..", "Resources", "solar.ico")))
         np.seterr(divide='ignore', invalid='ignore')
         self.sample = ""
 
@@ -167,12 +173,11 @@ class MainWindow(QtWidgets.QMainWindow):
 
             if not self.keithley:
                 self.statusBar().showMessage("##    Keithley and susi not found    ##")
-                self.popup_message("  Keithley\n"
-                                   "  and susi\n"
+                self.popup_message("  Keithley and SuSim\n"
                                    "were not found")
             else:
                 self.statusBar().showMessage("##    susi not found    ##")
-                self.popup_message("    susi\n"
+                self.popup_message("    SuSim\n"
                                    "was not found")
 
         # Arduino temperature sensor configuration
@@ -344,10 +349,6 @@ class MainWindow(QtWidgets.QMainWindow):
         self.for_bmL.setChecked(True)
         self.rev_bmL.setChecked(True)
         self.four_wire.setChecked(False)
-        # self.refCurrent = QToolButton(self)
-        # self.refCurrent.setText("Current (Reference)")
-        # self.refCurrent.setFixedSize(int(sMW * 2.3), 40)
-        # self.refCurrent.setCheckable(True)
         self.susiShutter = QToolButton(self)
         self.susiShutter.setText("SuSi Shutter")
         self.susiShutter.setFixedSize(int(sMW * 2.3), 40)
@@ -573,7 +574,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.Bsusi_off.setText("Off")
         self.Bsusi_on.setText("On")
         self.Brecipe.setText("Recipe")
-        self.Binfo.setText("\u24D8 Info")
+        self.Binfo.setText("\u24D8 Guide")
         self.BsaveM.setMaximumWidth(40)
         self.BloadM.setMaximumWidth(40)
         self.Bsusi_intensity.setMaximumWidth(40)
@@ -791,17 +792,17 @@ class MainWindow(QtWidgets.QMainWindow):
         except:
             self.statusBar().showMessage("Metadata file not compatible", 5000)
 
-    def show_manual(self):
+    def show_manual(self): # todo add details about JV calculations
         dialog = QDialog(self)
         dialog.setWindowTitle("Information")
-        dialog.setGeometry(100, 100, 400, 300)
+        dialog.setGeometry(100, 100, 800, 600)
 
         layout = QVBoxLayout(dialog)
 
         textBrowser = QTextBrowser(dialog)
         layout.addWidget(textBrowser)
 
-        html_file_path = "../Resources/manual.html"  # Update the file path to your HTML file
+        html_file_path = os.path.join(EXE_LOCATION, "..", "Resources", "manual.html")  # Update the file path to your HTML file
         if os.path.exists(html_file_path):
             with open(html_file_path, 'r', encoding='utf-8') as file:  # Ensure UTF-8 encoding is used
                 html_content = file.read()
@@ -1062,14 +1063,6 @@ class MainWindow(QtWidgets.QMainWindow):
 
         # Fit datapoint around Jsc to get Shunt(parallel) resistance
         reg_par = LinearRegression()
-        # co = 1 #Change here to increase number of fitted points (co=1 -> 3 points)
-        # try:
-        #     v_par = volt[v0 - co: v0 + co].reshape(-1, 1)
-        #     c_par = curr[v0 - co: v0 + co].reshape(-1, 1)
-        # except:
-        #     v_par = volt[v0 : v0 + co].reshape(-1, 1)
-        #     c_par = curr[v0 : v0 + co].reshape(-1, 1)
-
         lr_volt = 0.2
         p_pos = int(self.find_nearest(volt, value=lr_volt))
         n_pos = int(self.find_nearest(volt, value=-lr_volt))
@@ -1384,7 +1377,7 @@ class MainWindow(QtWidgets.QMainWindow):
         volt_begin = float(self.volt_start.text())
         volt_end = float(self.volt_end.text())
         volt_step = float(self.volt_step.text())
-        ap = int(self.ave_pts.text()) #TODO change here to 1 for keithley averaging
+        ap = int(self.ave_pts.text())
         time = float(self.set_time.text())
 
         # MPP Variables
