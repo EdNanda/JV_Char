@@ -1,0 +1,22 @@
+stages:
+  - build
+
+build_windows_package:
+  stage: build
+  image: hcr.helmholtz.cloud/examples/container-examples/wincompiler:python3.11
+    
+  tags:
+    - windows
+    
+  script:
+    - bash
+    - pip install --upgrade pip
+    - pip install --upgrade pyinstaller
+    - pip install --requirement requirements.txt
+    - pyinstaller -w --icon .\Resources\solar.ico --onefile .\jv_char\main.py --add-data ".\Resources\manual.html;.\resources" --name jv_char
+
+    
+  artifacts:
+    paths:
+      - build/
+      - dist/
