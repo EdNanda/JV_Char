@@ -5,8 +5,8 @@ import sys
 import matplotlib
 from PyQt5 import QtWidgets, QtGui, QtTest
 from PyQt5.QtWidgets import QWidget, QLineEdit, QFormLayout, QHBoxLayout, QVBoxLayout, QSpacerItem, QGridLayout
-from PyQt5.QtWidgets import QFrame, QPushButton, QCheckBox, QLabel, QToolButton, QTextEdit, QTextBrowser
-from PyQt5.QtWidgets import QSizePolicy, QMessageBox, QDialog,QInputDialog
+from PyQt5.QtWidgets import QFrame, QPushButton, QCheckBox, QLabel, QToolButton, QTextEdit, QTextBrowser, QComboBox
+from PyQt5.QtWidgets import QSizePolicy, QMessageBox, QDialog, QInputDialog, QGroupBox, QAbstractItemView, QListWidget
 from PyQt5.QtGui import QFont, QColor, QPixmap
 from PyQt5.QtWidgets import QTableView
 from PyQt5.QtCore import QAbstractTableModel, Qt, QTimer
@@ -26,6 +26,7 @@ import serial.tools.list_ports
 import serial
 from time import time, strftime, localtime, gmtime
 from datetime import datetime
+import apicalls_nomad
 
 rcParams.update({'figure.autolayout': True})
 matplotlib.use('Qt5Agg')
@@ -124,6 +125,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.setWindowIcon(QtGui.QIcon(os.path.join(EXE_LOCATION, "..", "Resources", "solar.ico")))
         np.seterr(divide='ignore', invalid='ignore')
         self.sample = ""
+        self.is_nomad = False
 
         self.statusBar().showMessage("Starting up, please wait", 10000)
 
@@ -246,19 +248,19 @@ class MainWindow(QtWidgets.QMainWindow):
         self.LEfolder = QLineEdit()
 
         # Make a grid layout and add labels and fields to it
-        LsetGeneral = QGridLayout()
-        LsetGeneral.addWidget(QLabel("Sample:"), 0, 0)
-        LsetGeneral.addWidget(self.LEsample, 0, 1)
-        LsetGeneral.addWidget(QLabel("User:"), 1, 0)
-        LsetGeneral.addWidget(self.LEuser, 1, 1)
+        self.LsetGeneral = QGridLayout()
+        self.LsetGeneral.addWidget(QLabel("Sample:"), 0, 0)
+        self.LsetGeneral.addWidget(self.LEsample, 0, 1)
+        self.LsetGeneral.addWidget(QLabel("User:"), 1, 0)
+        self.LsetGeneral.addWidget(self.LEuser, 1, 1)
         self.Bpath = QToolButton()
         self.Bpath.setToolTip("Create a folder containing today's date")
-        LsetGeneral.addWidget(self.Bpath, 1, 2)
-        LsetGeneral.addWidget(QLabel("Folder:"), 2, 0)
-        LsetGeneral.addWidget(self.LEfolder, 2, 1)
+        self.LsetGeneral.addWidget(self.Bpath, 1, 2)
+        self.LsetGeneral.addWidget(QLabel("Folder:"), 2, 0)
+        self.LsetGeneral.addWidget(self.LEfolder, 2, 1)
         self.Bfolder = QToolButton()
         self.Bfolder.setToolTip("Choose a folder where to save the data")
-        LsetGeneral.addWidget(self.Bfolder, 2, 2)
+        self.LsetGeneral.addWidget(self.Bfolder, 2, 2)
 
         # Set defaults
         self.Bpath.setText("\U0001F4C6")
@@ -499,7 +501,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
         # Position all these sets into the second layout V2
         layV2.addItem(verticalSpacerV2)
-        layV2.addLayout(LsetGeneral)
+        layV2.addLayout(self.LsetGeneral)
         layV2.addLayout(LsetParameters)
         layV2.addLayout(LsetProcess)
         layV2.addItem(verticalSpacerV2)
@@ -581,6 +583,33 @@ class MainWindow(QtWidgets.QMainWindow):
         self.Bsusi_off.setMaximumWidth(40)
         self.Bsusi_on.setMaximumWidth(40)
 
+        nomad_group = QGroupBox('NOMAD Connection')
+        self.nomad_user = QLineEdit()
+        self.nomad_user.setText("@helmholtz-berlin.de")
+        self.nomad_pswd = QLineEdit()
+        self.nomad_pswd.setEchoMode(QLineEdit.Password)
+
+        self.nomad_batches = QListWidget()
+        self.nomad_batches.setSelectionMode(QAbstractItemView.MultiSelection)
+        self.Bnomad_load = QToolButton()
+        self.Bnomad_load.setText("Load")
+
+        self.Bnomad_login = QToolButton()
+        self.Bnomad_login.setText("Login")
+        self.Bnomad_logout = QToolButton()
+        self.Bnomad_logout.setText("Logout")
+
+        self.nomad_form = QGridLayout()
+        self.nomad_form.addWidget(QLabel("Username: "), 0, 0)
+        self.nomad_form.addWidget(self.nomad_user, 0, 1, 1, 2)
+        self.nomad_form.addWidget(QLabel("Password: "), 1, 0)
+        self.nomad_form.addWidget(self.nomad_pswd, 1, 1, 1, 2)
+        self.nomad_form.addWidget(self.Bnomad_login, 2, 1)
+        self.nomad_form.addWidget(self.nomad_batches, 3, 0, 1, 3)
+        # self.nomad_form.addWidget(self.Bnomad_load, 4, 1)
+
+        nomad_group.setLayout(self.nomad_form)
+
         LextraButtons.addWidget(QLabel(""), 0, 0)
         LextraButtons.addWidget(QLabel("Metadata:"), 0, 1)
         LextraButtons.addWidget(QLabel("SuSi Intensity:"), 1, 1, 1, 2)
@@ -600,6 +629,7 @@ class MainWindow(QtWidgets.QMainWindow):
         layV3.addLayout(LmetaGlovebox)
         layV3.addItem(verticalSpacerV2)
         layV3.addLayout(LextraButtons)
+        layV3.addWidget(nomad_group)
         layV3.addItem(verticalSpacerV2)
 
         # Add to main horizontal layout with a spacer (for good looks)
@@ -658,6 +688,65 @@ class MainWindow(QtWidgets.QMainWindow):
         self.Brecipe.clicked.connect(self.recipe_popup)
         self.Binfo.clicked.connect(self.show_manual)
         self.multiplex.stateChanged.connect(self.multiplexing_allow)
+        self.Bnomad_login.clicked.connect(self.nomad_access_token)
+        self.Bnomad_load.clicked.connect(self.nomad_show_ids)
+        self.Bnomad_logout.clicked.connect(self.nomad_sign_off)
+
+    def nomad_access_token(self):
+        self.nomad_url = "https://nomad-hzb-se.de/nomad-oasis/api/v1"
+        user = self.nomad_user.text()
+        pswd = self.nomad_pswd.text()
+        if len(user) > 4 and len(pswd) > 7:
+            self.nomad_token = apicalls_nomad.get_token(self.nomad_url, user, pswd)
+            if len(self.nomad_token) > 10:
+                self.statusBar().showMessage("Logged into NOMAD", 5000)
+                self.nomad_form.removeWidget(self.Bnomad_login)
+                self.Bnomad_login.setParent(None)
+                self.nomad_form.addWidget(self.Bnomad_logout, 2, 1)
+                self.nomad_load_batches(self.nomad_url, self.nomad_token)
+            else:
+                self.statusBar().showMessage("Check user and/or password", 5000)
+        else:
+            self.statusBar().showMessage("Invalid User and/or password", 5000)
+
+    def nomad_load_batches(self, url, token):
+        self.nomad_form.addWidget(self.Bnomad_load, 4, 1)
+        batches_list = apicalls_nomad.get_batch_ids(url, token)
+        self.nomad_batches.clear()
+        self.nomad_batches.addItems(batches_list)
+
+    def nomad_show_ids(self):
+        selected_items = self.nomad_batches.selectedItems()
+        selected_items = [item.text() for item in selected_items]
+        if len(selected_items) > 0:
+            ids_list = apicalls_nomad.get_ids_in_batch(self.nomad_url, self.nomad_token, selected_items)
+            self.nomad_add_a_dropdown()
+            self.nomad_dropdown.addItems(ids_list)
+            self.is_nomad = True
+        else:
+            self.statusBar().showMessage("Please select one or more batches from the list", 5000)
+
+    def nomad_add_a_dropdown(self):
+        self.LsetGeneral.removeWidget(self.LEsample)
+        self.LEsample.setParent(None)
+        # Add NOMAD names here
+        self.nomad_dropdown = QComboBox()
+        self.LsetGeneral.addWidget(self.nomad_dropdown, 0, 1)
+
+    def nomad_sign_off(self):
+        self.LsetGeneral.removeWidget(self.nomad_dropdown)
+        self.nomad_form.removeWidget(self.Bnomad_logout)
+        self.nomad_form.removeWidget(self.Bnomad_load)
+        self.nomad_dropdown.setParent(None)
+        self.Bnomad_logout.setParent(None)
+        self.Bnomad_load.setParent(None)
+        self.LsetGeneral.addWidget(self.LEsample, 0, 1)
+        self.nomad_form.addWidget(self.Bnomad_login, 2, 1)
+        self.nomad_batches.clear()
+        self.nomad_token = ""
+        self.nomad_user = ""
+        self.nomad_pswd = ""
+        self.is_nomad = False
 
     def list_com_ports(self):
         ports = serial.tools.list_ports.comports()
@@ -726,7 +815,7 @@ class MainWindow(QtWidgets.QMainWindow):
             self.LEfolder.setText(self.folder)
         else:
             pass
-        if sample:
+        if sample or self.is_nomad:
             self.sample = self.LEsample.text()
             self.folder = self.folder + self.sample + "/"
 
@@ -813,7 +902,11 @@ class MainWindow(QtWidgets.QMainWindow):
         dialog.exec_()
 
     def gather_all_metadata(self):
-        self.sample = self.LEsample.text()
+        if not self.is_nomad:
+            self.sample = self.LEsample.text()
+        else:
+            name = self.nomad_dropdown.currentText()
+            self.sample = name
         self.meta_dict = {}  # All variables will be collected here
 
         if not hasattr(self, "Rcurrent"):
@@ -958,6 +1051,10 @@ class MainWindow(QtWidgets.QMainWindow):
             file_name = self.folder + tag + self.sample + ".txt"
         elif self.is_mpp_measurement:
             file_name = self.folder + tag + self.sample + "_" + name + ".txt"
+        elif self.is_nomad:
+            ntag = tag.lower().replace("_", "")
+            sname = self.nomad_dropdown.currentText()
+            file_name = self.folder + sname + "." + ntag + ".txt"
         else:
             file_name = file_name = self.folder + "test_" + self.sample + ".txt"
 
@@ -998,7 +1095,11 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def save_mpp(self, cell):
         #self.is_mpp_bool = True
-        sample = self.LEsample.text()
+        # if not self.is_nomad:
+        #     sample = self.LEsample.text()
+        # else:
+        #     sname = self.nomad_dropdown.currentText()
+        #     sample = sname
         self.gather_all_metadata()
         metadata = pd.DataFrame.from_dict(self.meta_dict, orient='index')
         mpp_data = pd.DataFrame({"Elapsed (min)": self.mpp_time, "Date/Time":self.mpp_zeit, "Voltage (V)": self.res_mpp_voltage,
