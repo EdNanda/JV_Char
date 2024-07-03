@@ -1047,20 +1047,24 @@ class MainWindow(QtWidgets.QMainWindow):
             tag = "MPP_"
         else:
             tag = "Recipe_"
-        if self.is_jv_measurement:
+        if self.is_nomad:
+            ntag = tag.lower().replace("_", "")
+            sname = self.nomad_dropdown.currentText()
+            file_name = self.folder + sname +".meas-" + str(count) + "." + ntag + ".txt"
+        elif self.is_jv_measurement:
             file_name = self.folder + tag + self.sample + ".txt"
         elif self.is_mpp_measurement:
             file_name = self.folder + tag + self.sample + "_" + name + ".txt"
-        elif self.is_nomad:
-            ntag = tag.lower().replace("_", "")
-            sname = self.nomad_dropdown.currentText()
-            file_name = self.folder + sname + "." + ntag + ".txt"
         else:
             file_name = file_name = self.folder + "test_" + self.sample + ".txt"
-
+        print(file_name)
         while os.path.exists(file_name):
             count += 1
-            if self.is_mpp_measurement:
+            if self.is_nomad:
+                ntag = tag.lower().replace("_", "")
+                sname = self.nomad_dropdown.currentText()
+                file_name = self.folder + sname +".meas-" + str(count) + "." + ntag + ".txt"
+            elif self.is_mpp_measurement:
                 file_name = self.folder + tag + self.sample + "_" + name + "-" + str(count) + ".txt"
             else:
                 file_name = self.folder + tag + self.sample + "-" + str(count) + ".txt"
